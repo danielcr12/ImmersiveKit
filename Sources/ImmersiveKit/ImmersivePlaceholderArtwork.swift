@@ -7,6 +7,8 @@ import UIKit
 import AppKit
 #endif
 
+/// Composition layer that displays a processed `CGImage` hero or falls back to the
+/// OKLCH placeholder artwork when the image is absent or still loading.
 @MainActor
 struct ImmersiveImageArtworkLayer<Placeholder: View>: View {
     let image: CGImage?
@@ -50,6 +52,19 @@ struct ImmersiveImageArtworkLayer<Placeholder: View>: View {
     }
 }
 
+// MARK: - Placeholder tuning
+
+private enum ImmersivePlaceholderTuning {
+    /// Symbol size as a fraction of the smaller frame dimension.
+    static let symbolSizeRatio: CGFloat = 0.56
+    /// Minimum symbol size in points.
+    static let symbolSizeMinimum: CGFloat = 180
+    /// Maximum symbol size in points.
+    static let symbolSizeMaximum: CGFloat = 420
+    /// Upward nudge applied to the symbol, as a fraction of the frame height.
+    static let symbolVerticalNudge: CGFloat = 0.05
+}
+
 @MainActor
 private struct ImmersivePlaceholderArtwork<Placeholder: View>: View {
     let palette: ImmersivePlaceholderPalette
@@ -59,8 +74,11 @@ private struct ImmersivePlaceholderArtwork<Placeholder: View>: View {
     var body: some View {
         GeometryReader { geometry in
             let symbolSize = min(
-                max(min(geometry.size.width, geometry.size.height) * 0.56, 180),
-                420
+                max(
+                    min(geometry.size.width, geometry.size.height) * ImmersivePlaceholderTuning.symbolSizeRatio,
+                    ImmersivePlaceholderTuning.symbolSizeMinimum
+                ),
+                ImmersivePlaceholderTuning.symbolSizeMaximum
             )
 
             ZStack {
@@ -69,7 +87,7 @@ private struct ImmersivePlaceholderArtwork<Placeholder: View>: View {
                 placeholder
                     .frame(width: symbolSize, height: symbolSize)
                     .foregroundStyle(symbolColor)
-                    .offset(y: -geometry.size.height * 0.05)
+                    .offset(y: -geometry.size.height * ImmersivePlaceholderTuning.symbolVerticalNudge)
 
                 LinearGradient(
                     stops: [
@@ -121,6 +139,8 @@ private struct ImmersivePlaceholderArtwork<Placeholder: View>: View {
     }
 }
 
+/// An LRU-bounded in-memory cache for derived ``ImmersivePlaceholderPalette`` values.
+/// Separate entries are stored per color scheme to avoid cross-appearance bleed.
 @MainActor
 enum ImmersivePlaceholderPaletteCache {
     private static var palettes: [String: ImmersivePlaceholderPalette] = [:]
@@ -302,6 +322,7 @@ struct ImmersivePlaceholderPalette {
             rgbColor = NSColor(color).usingColorSpace(.sRGB)
         }
         guard let rgbColor else { return nil }
+        // NSColor.getRed returns Void (unlike UIColor which returns Bool); call it directly.
         rgbColor.getRed(&red, green: &green, blue: &blue, alpha: &opacity)
         #else
         return nil

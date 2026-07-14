@@ -21,7 +21,9 @@ public enum ImmersiveImageProcessing {
         }.value.image
     }
 
-    static func cropSynchronously(
+    /// Synchronous center-square crop; suitable for init-time warm starts where the
+    /// source image is already resident in memory.
+    internal static func cropSynchronously(
         _ image: CGImage?,
         crop: ImmersiveArtworkCrop
     ) -> CGImage? {
@@ -40,8 +42,8 @@ public enum ImmersiveImageProcessing {
         return image.cropping(to: cropRect) ?? image
     }
 
-    @MainActor
     /// Extracts an average SwiftUI color from the bottom 30 percent of an image.
+    @MainActor
     public static func extractBackgroundColor(from image: CGImage) async throws -> Color {
         let source = SendableCGImage(image: image)
         let components = try await Task.detached(priority: .userInitiated) {
@@ -68,6 +70,8 @@ public enum ImmersiveImageProcessing {
         extent: CGRect,
         context: CIContext
     ) throws -> RGBAComponents {
+        // Core Image uses a bottom-left origin, so `extent.minY` is the bottom of the image.
+        // This rect therefore samples the lowest 30 % of the image in visual terms.
         let sampleRect = CGRect(
             x: extent.minX,
             y: extent.minY,
@@ -102,6 +106,7 @@ public enum ImmersiveImageProcessing {
     }
 }
 
+// CGImage is immutable after creation; cross-actor transfer via this wrapper is safe.
 private struct SendableCGImage: @unchecked Sendable {
     let image: CGImage
 }
@@ -145,14 +150,17 @@ enum ImmersiveArtworkMemoryCache {
         return color
     }
 
-    static func store(_ color: Color, for key: String) {
-        if colors[key] == nil,
-           colors.count >= maxColorEntries,
-           let oldest = accessOrder.first {
-            colors.removeValue(forKey: oldest)
-            accessOrder.removeFirst()
-        }
+    private static func evictColorIfNeeded(for key: String) {
+        // Only evict on insertion of a new key; updates do not grow the count.
+        guard colors[key] == nil,
+              colors.count >= maxColorEntries,
+              let oldest = accessOrder.first else { return }
+        colors.removeValue(forKey: oldest)
+        accessOrder.removeFirst()
+    }
 
+    static func store(_ color: Color, for key: String) {
+        evictColorIfNeeded(for: key)
         colors[key] = color
         if let index = accessOrder.firstIndex(of: key) {
             accessOrder.remove(at: index)
