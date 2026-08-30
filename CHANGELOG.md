@@ -2,6 +2,25 @@
 
 All notable changes to ImmersiveKit are documented in this file.
 
+## 0.3.0 - 2026-08-30
+
+### Added
+- Added explicit, opt-in pagination while keeping `ImmersiveImageBackground` and `ImmersiveArtworkBackground` single-page by default.
+- Added `ImmersivePaginationConfiguration` for shared paginated-container behavior.
+- Added `ImmersivePagedContainer` for collections whose models already produce complete immersive pages.
+- Added `ImmersivePagedImageBackground` for identifiable image-backed pages such as profiles.
+- Added `ImmersivePagedArtworkBackground` for identifiable custom SwiftUI artwork pages such as weather cities.
+- Added `ImmersiveImagePageConfiguration` to supply each page's artwork, colors, labels, crop, and layout.
+- Added `ImmersiveArtworkPageConfiguration` to supply each custom-artwork page's colors, labels, treatment, and layout.
+- Programmatic page changes use a configurable animation and respect Reduce Motion.
+
+### Fixed
+- Paginated containers now retain every supplied page while presented, preventing processed artwork and local page state from being destroyed during a swipe.
+- Interactive selection now commits after paging settles on iOS 18+ and macOS 15+, instead of changing while the user is still scrolling.
+- Invalid selections now reconcile to the visible page or the first available page.
+- Updated `ImmersiveKit.version` and the tagged-package installation example to
+  `0.3.0`.
+
 ## 0.2.0 - 2026-07-14
 
 ### Changed

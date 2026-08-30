@@ -16,6 +16,18 @@ public enum ImmersiveBackgroundTreatment: Sendable {
     /// Derives an OKLCH-adjusted palette from the supplied color;
     /// ``key`` identifies the palette in the in-memory cache.
     case placeholderPalette(key: String)
+    /// Uses the supplied color exactly and omits the artwork scrim.
+    case solidPlaceholder
+}
+
+/// Determines how a missing image is rendered inside an image-backed hero.
+public enum ImmersivePlaceholderArtworkStyle: Equatable, Sendable {
+    /// Uses the layered placeholder gradient and hero scrim.
+    case gradient
+    /// Uses a uniform placeholder tint and the supplied symbol color gradient.
+    case solid
+    /// Shows the placeholder symbol without painting a placeholder background.
+    case transparent
 }
 
 /// Layout values shared by immersive artwork backgrounds.
@@ -59,6 +71,7 @@ public struct ImmersiveArtworkBackground<Artwork: View, Content: View>: View {
     private let content: Content
 
     @State private var hidesTopScrollEdgeEffect = true
+    @State private var heroOverscroll: CGFloat = 0
     @Environment(\.colorScheme) private var colorScheme
 
     public init(
@@ -146,7 +159,7 @@ public struct ImmersiveArtworkBackground<Artwork: View, Content: View>: View {
                         .clipped()
 
                     ImmersiveArtworkOverlayLayer(
-                        backgroundColor: effectiveBackgroundColor,
+                        backgroundColor: effectiveOverlayColor,
                         height: displayHeight
                     )
                 }
@@ -177,6 +190,15 @@ public struct ImmersiveArtworkBackground<Artwork: View, Content: View>: View {
             .offset(y: -overscroll)
         }
         .frame(height: heroHeight)
+        .onGeometryChange(for: CGFloat.self) { geometry in
+            max(
+                geometry.frame(in: NamedCoordinateSpace.immersiveArtworkScroll).minY,
+                0
+            )
+        } action: { overscroll in
+            guard heroOverscroll != overscroll else { return }
+            heroOverscroll = overscroll
+        }
     }
 
     private func updateScrollProgress(offsetY: CGFloat, heroHeight: CGFloat) {
@@ -198,6 +220,17 @@ public struct ImmersiveArtworkBackground<Artwork: View, Content: View>: View {
                 baseColor: backgroundColor,
                 colorScheme: colorScheme
             ).solidColor
+        case .solidPlaceholder:
+            return backgroundColor
+        }
+    }
+
+    private var effectiveOverlayColor: Color {
+        switch backgroundTreatment {
+        case .solidPlaceholder:
+            return .clear
+        case .exact, .placeholderPalette(_):
+            return effectiveBackgroundColor
         }
     }
 }
@@ -211,6 +244,7 @@ public struct ImmersiveImageBackground<Placeholder: View, Content: View>: View {
     private let fallbackBackgroundColor: Color
     private let placeholderPaletteKey: String
     private let placeholderSymbolColor: Color
+    private let placeholderArtworkStyle: ImmersivePlaceholderArtworkStyle
     private let showsPlaceholder: Bool
     private let crop: ImmersiveArtworkCrop
     private let title: String
@@ -229,7 +263,8 @@ public struct ImmersiveImageBackground<Placeholder: View, Content: View>: View {
         preferredBackgroundColor: Color? = nil,
         fallbackBackgroundColor: Color,
         placeholderPaletteKey: String,
-        placeholderSymbolColor: Color = .white.opacity(0.78),
+        placeholderSymbolColor: Color = .white,
+        placeholderArtworkStyle: ImmersivePlaceholderArtworkStyle = .gradient,
         showsPlaceholder: Bool = true,
         crop: ImmersiveArtworkCrop = .square,
         title: String,
@@ -244,6 +279,7 @@ public struct ImmersiveImageBackground<Placeholder: View, Content: View>: View {
         self.fallbackBackgroundColor = fallbackBackgroundColor
         self.placeholderPaletteKey = placeholderPaletteKey
         self.placeholderSymbolColor = placeholderSymbolColor
+        self.placeholderArtworkStyle = placeholderArtworkStyle
         self.showsPlaceholder = showsPlaceholder
         self.crop = crop
         self.title = title
@@ -267,6 +303,7 @@ public struct ImmersiveImageBackground<Placeholder: View, Content: View>: View {
             backgroundColor: effectiveBackgroundColor,
             title: title,
             subtitle: subtitle,
+            backgroundTreatment: effectiveBackgroundTreatment,
             layout: layout
         ) {
             ImmersiveImageArtworkLayer(
@@ -275,6 +312,7 @@ public struct ImmersiveImageBackground<Placeholder: View, Content: View>: View {
                 fallbackBackgroundColor: fallbackBackgroundColor,
                 paletteKey: placeholderPaletteKey,
                 symbolColor: placeholderSymbolColor,
+                placeholderArtworkStyle: placeholderArtworkStyle,
                 placeholder: placeholder
             )
         } content: {
@@ -286,13 +324,49 @@ public struct ImmersiveImageBackground<Placeholder: View, Content: View>: View {
     }
 
     private var effectiveBackgroundColor: Color {
-        preferredBackgroundColor
+        if usesTransparentPlaceholderBackground {
+            return .clear
+        }
+
+        if usesSolidPlaceholderBackground {
+            return fallbackBackgroundColor
+        }
+
+        if usesPlaceholderArtwork {
+            return ImmersivePlaceholderPaletteCache.palette(
+                for: placeholderPaletteKey,
+                baseColor: fallbackBackgroundColor,
+                colorScheme: colorScheme
+            ).solidColor
+        }
+
+        return preferredBackgroundColor
             ?? extractedBackgroundColor
             ?? ImmersivePlaceholderPaletteCache.palette(
                 for: placeholderPaletteKey,
                 baseColor: fallbackBackgroundColor,
                 colorScheme: colorScheme
             ).solidColor
+    }
+
+    private var effectiveBackgroundTreatment: ImmersiveBackgroundTreatment {
+        usesSolidPlaceholderBackground || usesTransparentPlaceholderBackground
+            ? .solidPlaceholder
+            : .exact
+    }
+
+    private var usesTransparentPlaceholderBackground: Bool {
+        usesPlaceholderArtwork
+            && placeholderArtworkStyle == .transparent
+    }
+
+    private var usesSolidPlaceholderBackground: Bool {
+        usesPlaceholderArtwork
+            && placeholderArtworkStyle == .solid
+    }
+
+    private var usesPlaceholderArtwork: Bool {
+        processedImage == nil && showsPlaceholder
     }
 
     private var processingID: String {

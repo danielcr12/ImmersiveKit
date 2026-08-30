@@ -16,6 +16,7 @@ struct ImmersiveImageArtworkLayer<Placeholder: View>: View {
     let fallbackBackgroundColor: Color
     let paletteKey: String
     let symbolColor: Color
+    let placeholderArtworkStyle: ImmersivePlaceholderArtworkStyle
     let placeholder: Placeholder
 
     @Environment(\.colorScheme) private var colorScheme
@@ -42,6 +43,7 @@ struct ImmersiveImageArtworkLayer<Placeholder: View>: View {
                             colorScheme: colorScheme
                         ),
                         symbolColor: symbolColor,
+                        artworkStyle: placeholderArtworkStyle,
                         placeholder: placeholder
                     )
                 } else {
@@ -69,7 +71,10 @@ private enum ImmersivePlaceholderTuning {
 private struct ImmersivePlaceholderArtwork<Placeholder: View>: View {
     let palette: ImmersivePlaceholderPalette
     let symbolColor: Color
+    let artworkStyle: ImmersivePlaceholderArtworkStyle
     let placeholder: Placeholder
+
+    @Environment(\.colorScheme) private var colorScheme
 
     var body: some View {
         GeometryReader { geometry in
@@ -82,12 +87,45 @@ private struct ImmersivePlaceholderArtwork<Placeholder: View>: View {
             )
 
             ZStack {
-                placeholderGradient(size: geometry.size)
+                placeholderBackground(size: geometry.size)
+                placeholderSymbol(
+                    size: symbolSize,
+                    height: geometry.size.height
+                )
+            }
+        }
+    }
 
-                placeholder
-                    .frame(width: symbolSize, height: symbolSize)
-                    .foregroundStyle(symbolColor)
-                    .offset(y: -geometry.size.height * ImmersivePlaceholderTuning.symbolVerticalNudge)
+    @ViewBuilder
+    private func placeholderSymbol(size: CGFloat, height: CGFloat) -> some View {
+        switch artworkStyle {
+        case .gradient:
+            placeholder
+                .frame(width: size, height: size)
+                .foregroundStyle(symbolColor)
+                .offset(y: -height * ImmersivePlaceholderTuning.symbolVerticalNudge)
+        case .solid:
+            placeholder
+                .frame(width: size, height: size)
+                .foregroundStyle(symbolColor.gradient)
+                .offset(y: -height * ImmersivePlaceholderTuning.symbolVerticalNudge)
+        case .transparent:
+            placeholder
+                .frame(width: size, height: size)
+                .foregroundStyle(symbolColor)
+                .offset(y: -height * ImmersivePlaceholderTuning.symbolVerticalNudge)
+        }
+    }
+
+    @ViewBuilder
+    private func placeholderBackground(size: CGSize) -> some View {
+        switch artworkStyle {
+        case .gradient:
+            ZStack {
+                ImmersivePaletteGradient(
+                    palette: palette,
+                    size: size
+                )
 
                 LinearGradient(
                     stops: [
@@ -99,11 +137,22 @@ private struct ImmersivePlaceholderArtwork<Placeholder: View>: View {
                     startPoint: .top,
                     endPoint: .bottom
                 )
+                .opacity(colorScheme == .dark ? 0 : 1)
             }
+        case .solid:
+            Color.clear
+        case .transparent:
+            Color.clear
         }
     }
+}
 
-    private func placeholderGradient(size: CGSize) -> some View {
+@MainActor
+struct ImmersivePaletteGradient: View {
+    let palette: ImmersivePlaceholderPalette
+    let size: CGSize
+
+    var body: some View {
         Rectangle()
             .fill(
                 LinearGradient(

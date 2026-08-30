@@ -36,6 +36,44 @@ final class ImmersiveKitTests: XCTestCase {
         XCTAssertNil(layout.subtitleLineLimit)
     }
 
+    // MARK: - ImmersivePaginationSelection
+
+    func testPaginationKeepsValidSelection() {
+        let result = ImmersivePaginationSelection.resolved(
+            selection: "b",
+            visiblePageID: "a",
+            pageIDs: ["a", "b", "c"]
+        )
+        XCTAssertEqual(result, "b")
+    }
+
+    func testPaginationRepairsInvalidSelectionToVisiblePage() {
+        let result = ImmersivePaginationSelection.resolved(
+            selection: "missing",
+            visiblePageID: "b",
+            pageIDs: ["a", "b", "c"]
+        )
+        XCTAssertEqual(result, "b")
+    }
+
+    func testPaginationRepairsInvalidSelectionToFirstPage() {
+        let result = ImmersivePaginationSelection.resolved(
+            selection: "missing",
+            visiblePageID: nil,
+            pageIDs: ["a", "b", "c"]
+        )
+        XCTAssertEqual(result, "a")
+    }
+
+    func testPaginationReturnsNilForEmptyPages() {
+        let result = ImmersivePaginationSelection.resolved(
+            selection: "missing",
+            visiblePageID: nil,
+            pageIDs: [String]()
+        )
+        XCTAssertNil(result)
+    }
+
     // MARK: - ImmersiveImageProcessing.cropSynchronously
 
     func testCropSynchronouslyNilImageReturnsNil() {
