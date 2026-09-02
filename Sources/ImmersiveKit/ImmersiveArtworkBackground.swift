@@ -164,21 +164,14 @@ public struct ImmersiveArtworkBackground<Artwork: View, Content: View>: View {
             let displayHeight = heroHeight + overscroll
 
             ZStack(alignment: .bottom) {
-                ZStack {
-                    artwork
-                        .frame(
-                            width: outerGeometry.size.width,
-                            height: displayHeight + ImmersiveArtworkTuning.topBleed
-                        )
-                        .clipped()
-
-                    ImmersiveArtworkOverlayLayer(
-                        backgroundColor: effectiveOverlayColor,
-                        height: displayHeight
-                    )
-                }
+                ImmersiveHeroArtworkLayer(
+                    artwork: artwork,
+                    width: outerGeometry.size.width,
+                    height: displayHeight,
+                    backgroundColor: effectiveOverlayColor,
+                    fadesIntoPrism: usesAdaptivePrismBackground
+                )
                 .frame(width: outerGeometry.size.width, height: displayHeight)
-                .clipShape(ImmersiveTopBleedClipShape())
                 .allowsHitTesting(false)
 
                 VStack(spacing: ImmersiveArtworkTuning.titleSubtitleSpacing) {
@@ -201,7 +194,6 @@ public struct ImmersiveArtworkBackground<Artwork: View, Content: View>: View {
                 .offset(y: ImmersiveArtworkTuning.heroLabelVerticalOffset)
             }
             .frame(width: outerGeometry.size.width, height: displayHeight)
-            .clipShape(ImmersiveTopBleedClipShape())
             .offset(y: -overscroll)
         }
         .frame(height: heroHeight)
@@ -264,6 +256,11 @@ public struct ImmersiveArtworkBackground<Artwork: View, Content: View>: View {
         case .exact, .prismAdaptive, .placeholderPalette(_):
             return effectiveBackgroundColor
         }
+    }
+
+    private var usesAdaptivePrismBackground: Bool {
+        guard case .prismAdaptive = backgroundTreatment else { return false }
+        return true
     }
 }
 
@@ -516,35 +513,30 @@ private struct ImmersiveBackgroundLayer: View {
     let adaptivePalette: PrismAdaptiveBackgroundPalette?
     let adaptiveMeshStartOffset: CGFloat
 
+    @ViewBuilder
     var body: some View {
-        ZStack(alignment: .top) {
-            backgroundColor
-
-            if let adaptivePalette {
-                GeometryReader { geometry in
-                    VStack(spacing: 0) {
-                        Color.clear
-                            .frame(
-                                height: min(adaptiveMeshStartOffset, geometry.size.height)
-                            )
-
-                        PrismAdaptiveMeshBackground(
-                            sourceColor: sourceColor,
-                            palette: adaptivePalette
-                        )
-                        .frame(maxWidth: .infinity, maxHeight: .infinity)
-                    }
-                }
+        if let adaptivePalette {
+            GeometryReader { geometry in
+                PrismAdaptiveMeshBackground(
+                    sourceColor: sourceColor,
+                    palette: adaptivePalette,
+                    transitionStart: transitionStart(in: geometry.size.height)
+                )
             }
+        } else {
+            backgroundColor
         }
+    }
+
+    private func transitionStart(in containerHeight: CGFloat) -> CGFloat {
+        guard containerHeight > 0 else { return 0 }
+        return min(max(adaptiveMeshStartOffset / containerHeight, 0), 1)
     }
 }
 
 private enum ImmersiveArtworkTuning {
     static let scrollEdgeRevealProgress: CGFloat = 0.85
     static let topBleed: CGFloat = 30
-    /// Distance by which the hero clip rect extends upward to prevent status-bar clipping artefacts.
-    static let clipBleed: CGFloat = 800
     /// Vertical spacing between the title and subtitle labels in the hero.
     static let titleSubtitleSpacing: CGFloat = 5
     /// Bottom inset of the title/subtitle stack from the hero's lower edge.
@@ -567,18 +559,71 @@ private extension NamedCoordinateSpace {
         .named(ImmersiveScrollSpace.name)
 }
 
-private struct ImmersiveTopBleedClipShape: Shape {
-    func path(in rect: CGRect) -> Path {
-        var path = Path()
-        path.addRect(
-            CGRect(
-                x: rect.minX,
-                y: rect.minY - ImmersiveArtworkTuning.clipBleed,
-                width: rect.width,
-                height: rect.height + ImmersiveArtworkTuning.clipBleed
+private struct ImmersiveHeroArtworkLayer<Artwork: View>: View {
+    let artwork: Artwork
+    let width: CGFloat
+    let height: CGFloat
+    let backgroundColor: Color
+    let fadesIntoPrism: Bool
+
+    @ViewBuilder
+    var body: some View {
+        if fadesIntoPrism {
+            ImmersiveHeroArtworkSurface(
+                artwork: artwork,
+                width: width,
+                height: height
             )
+            .mask {
+                ImmersiveHeroArtworkFadeMask()
+            }
+        } else {
+            ZStack {
+                ImmersiveHeroArtworkSurface(
+                    artwork: artwork,
+                    width: width,
+                    height: height
+                )
+
+                ImmersiveArtworkOverlayLayer(
+                    backgroundColor: backgroundColor,
+                    height: height
+                )
+            }
+        }
+    }
+}
+
+private struct ImmersiveHeroArtworkSurface<Artwork: View>: View {
+    let artwork: Artwork
+    let width: CGFloat
+    let height: CGFloat
+
+    var body: some View {
+        artwork
+            .frame(
+                width: width,
+                height: height + ImmersiveArtworkTuning.topBleed
+            )
+            .clipped()
+            .frame(width: width, height: height)
+            .clipped()
+    }
+}
+
+private struct ImmersiveHeroArtworkFadeMask: View {
+    var body: some View {
+        LinearGradient(
+            stops: [
+                .init(color: .white, location: 0),
+                .init(color: .white, location: 0.68),
+                .init(color: .white.opacity(0.74), location: 0.80),
+                .init(color: .white.opacity(0.10), location: 0.96),
+                .init(color: .clear, location: 1),
+            ],
+            startPoint: .top,
+            endPoint: .bottom
         )
-        return path
     }
 }
 
