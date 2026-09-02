@@ -1,4 +1,5 @@
 import CoreGraphics
+import PrismBackgroundFoundation
 import SwiftUI
 
 /// Determines how source artwork is cropped before presentation and color analysis.
@@ -13,7 +14,10 @@ public enum ImmersiveArtworkCrop: String, Sendable {
 public enum ImmersiveBackgroundTreatment: Sendable {
     /// Uses the supplied color exactly as the background.
     case exact
-    /// Derives an OKLCH-adjusted palette from the supplied color;
+    /// Starts with the supplied source color and transitions into its adaptive
+    /// light- or dark-mode Prism mesh below the artwork.
+    case prismAdaptive
+    /// Derives an OKLCH-adjusted palette and applies the standard Prism wash;
     /// ``key`` identifies the palette in the in-memory cache.
     case placeholderPalette(key: String)
     /// Uses the supplied color exactly and omits the artwork scrim.
@@ -78,7 +82,7 @@ public struct ImmersiveArtworkBackground<Artwork: View, Content: View>: View {
         backgroundColor: Color,
         title: String,
         subtitle: String,
-        titleColor: Color = .white,
+        titleColor: Color = .primary,
         backgroundTreatment: ImmersiveBackgroundTreatment = .exact,
         layout: ImmersiveArtworkLayout = .standard,
         @ViewBuilder artwork: () -> Artwork,
@@ -100,10 +104,20 @@ public struct ImmersiveArtworkBackground<Artwork: View, Content: View>: View {
                 outerGeometry.size.height * layout.heroHeightRatio,
                 layout.minimumHeroHeight
             )
+            let adaptiveMeshStartOffset = ImmersiveBackgroundGeometry.adaptiveMeshStartOffset(
+                heroHeight: heroHeight,
+                heroOverscroll: heroOverscroll,
+                containerHeight: outerGeometry.size.height
+            )
 
             ZStack(alignment: .top) {
-                effectiveBackgroundColor
-                    .ignoresSafeArea()
+                ImmersiveBackgroundLayer(
+                    backgroundColor: effectiveBackgroundColor,
+                    sourceColor: backgroundColor,
+                    adaptivePalette: effectiveAdaptivePalette,
+                    adaptiveMeshStartOffset: adaptiveMeshStartOffset
+                )
+                .ignoresSafeArea()
 
                 ScrollView {
                     VStack(spacing: 0) {
@@ -184,6 +198,7 @@ public struct ImmersiveArtworkBackground<Artwork: View, Content: View>: View {
                 }
                 .padding(.horizontal, ImmersiveArtworkTuning.heroLabelHorizontalPadding)
                 .padding(.bottom, ImmersiveArtworkTuning.heroLabelBottomPadding)
+                .offset(y: ImmersiveArtworkTuning.heroLabelVerticalOffset)
             }
             .frame(width: outerGeometry.size.width, height: displayHeight)
             .clipShape(ImmersiveTopBleedClipShape())
@@ -214,22 +229,39 @@ public struct ImmersiveArtworkBackground<Artwork: View, Content: View>: View {
         switch backgroundTreatment {
         case .exact:
             return backgroundColor
+        case .prismAdaptive:
+            return PrismBackgroundConstruction.washedColor(
+                backgroundColor,
+                colorScheme: colorScheme
+            )
         case .placeholderPalette(let key):
-            return ImmersivePlaceholderPaletteCache.palette(
+            let paletteColor = ImmersivePlaceholderPaletteCache.palette(
                 for: key,
                 baseColor: backgroundColor,
                 colorScheme: colorScheme
             ).solidColor
+            return PrismBackgroundConstruction.washedColor(
+                paletteColor,
+                colorScheme: colorScheme
+            )
         case .solidPlaceholder:
             return backgroundColor
         }
+    }
+
+    private var effectiveAdaptivePalette: PrismAdaptiveBackgroundPalette? {
+        guard case .prismAdaptive = backgroundTreatment else { return nil }
+        return PrismAdaptiveBackgroundPalette(
+            baseColor: backgroundColor,
+            colorScheme: colorScheme
+        )
     }
 
     private var effectiveOverlayColor: Color {
         switch backgroundTreatment {
         case .solidPlaceholder:
             return .clear
-        case .exact, .placeholderPalette(_):
+        case .exact, .prismAdaptive, .placeholderPalette(_):
             return effectiveBackgroundColor
         }
     }
@@ -329,15 +361,22 @@ public struct ImmersiveImageBackground<Placeholder: View, Content: View>: View {
         }
 
         if usesSolidPlaceholderBackground {
-            return fallbackBackgroundColor
+            return PrismBackgroundConstruction.washedColor(
+                fallbackBackgroundColor,
+                colorScheme: colorScheme
+            )
         }
 
         if usesPlaceholderArtwork {
-            return ImmersivePlaceholderPaletteCache.palette(
+            let paletteColor = ImmersivePlaceholderPaletteCache.palette(
                 for: placeholderPaletteKey,
                 baseColor: fallbackBackgroundColor,
                 colorScheme: colorScheme
             ).solidColor
+            return PrismBackgroundConstruction.washedColor(
+                paletteColor,
+                colorScheme: colorScheme
+            )
         }
 
         return preferredBackgroundColor
@@ -350,9 +389,10 @@ public struct ImmersiveImageBackground<Placeholder: View, Content: View>: View {
     }
 
     private var effectiveBackgroundTreatment: ImmersiveBackgroundTreatment {
-        usesSolidPlaceholderBackground || usesTransparentPlaceholderBackground
-            ? .solidPlaceholder
-            : .exact
+        if usesSolidPlaceholderBackground || usesTransparentPlaceholderBackground {
+            return .solidPlaceholder
+        }
+        return processedImage == nil ? .exact : .prismAdaptive
     }
 
     private var usesTransparentPlaceholderBackground: Bool {
@@ -458,6 +498,48 @@ public enum ImmersiveImagePrewarmer {
     }
 }
 
+enum ImmersiveBackgroundGeometry {
+    static func adaptiveMeshStartOffset(
+        heroHeight: CGFloat,
+        heroOverscroll: CGFloat,
+        containerHeight: CGFloat
+    ) -> CGFloat {
+        guard containerHeight > 0 else { return 0 }
+        return min(max(heroHeight + heroOverscroll, 0), containerHeight)
+    }
+}
+
+@MainActor
+private struct ImmersiveBackgroundLayer: View {
+    let backgroundColor: Color
+    let sourceColor: Color
+    let adaptivePalette: PrismAdaptiveBackgroundPalette?
+    let adaptiveMeshStartOffset: CGFloat
+
+    var body: some View {
+        ZStack(alignment: .top) {
+            backgroundColor
+
+            if let adaptivePalette {
+                GeometryReader { geometry in
+                    VStack(spacing: 0) {
+                        Color.clear
+                            .frame(
+                                height: min(adaptiveMeshStartOffset, geometry.size.height)
+                            )
+
+                        PrismAdaptiveMeshBackground(
+                            sourceColor: sourceColor,
+                            palette: adaptivePalette
+                        )
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    }
+                }
+            }
+        }
+    }
+}
+
 private enum ImmersiveArtworkTuning {
     static let scrollEdgeRevealProgress: CGFloat = 0.85
     static let topBleed: CGFloat = 30
@@ -467,6 +549,8 @@ private enum ImmersiveArtworkTuning {
     static let titleSubtitleSpacing: CGFloat = 5
     /// Bottom inset of the title/subtitle stack from the hero's lower edge.
     static let heroLabelBottomPadding: CGFloat = 30
+    /// Explicit visual shift toward the hero's lower edge.
+    static let heroLabelVerticalOffset: CGFloat = 10
     /// Horizontal padding of the title/subtitle stack within the hero.
     static let heroLabelHorizontalPadding: CGFloat = 24
 }

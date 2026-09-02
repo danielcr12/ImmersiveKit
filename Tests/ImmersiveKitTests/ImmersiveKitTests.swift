@@ -36,6 +36,49 @@ final class ImmersiveKitTests: XCTestCase {
         XCTAssertNil(layout.subtitleLineLimit)
     }
 
+    // MARK: - ImmersiveBackgroundGeometry
+
+    func testAdaptiveMeshStartsAtHeroBoundary() {
+        XCTAssertEqual(
+            ImmersiveBackgroundGeometry.adaptiveMeshStartOffset(
+                heroHeight: 440,
+                heroOverscroll: 0,
+                containerHeight: 800
+            ),
+            440
+        )
+    }
+
+    func testAdaptiveMeshStartFollowsHeroOverscroll() {
+        XCTAssertEqual(
+            ImmersiveBackgroundGeometry.adaptiveMeshStartOffset(
+                heroHeight: 440,
+                heroOverscroll: 80,
+                containerHeight: 800
+            ),
+            520
+        )
+    }
+
+    func testAdaptiveMeshStartClampsToContainer() {
+        XCTAssertEqual(
+            ImmersiveBackgroundGeometry.adaptiveMeshStartOffset(
+                heroHeight: 800,
+                heroOverscroll: 80,
+                containerHeight: 800
+            ),
+            800
+        )
+        XCTAssertEqual(
+            ImmersiveBackgroundGeometry.adaptiveMeshStartOffset(
+                heroHeight: 440,
+                heroOverscroll: 0,
+                containerHeight: 0
+            ),
+            0
+        )
+    }
+
     // MARK: - ImmersivePaginationSelection
 
     func testPaginationKeepsValidSelection() {

@@ -14,7 +14,7 @@ public struct ImmersiveArtworkPageConfiguration {
         backgroundColor: Color,
         title: String,
         subtitle: String,
-        titleColor: Color = .white,
+        titleColor: Color = .primary,
         backgroundTreatment: ImmersiveBackgroundTreatment = .exact,
         layout: ImmersiveArtworkLayout = .standard
     ) {

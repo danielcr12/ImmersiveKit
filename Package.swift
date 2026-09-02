@@ -15,16 +15,16 @@ let package = Package(
         ),
     ],
     dependencies: [
-        .package(
-            url: "https://github.com/danielcr12/OKLCHKit.git",
-            exact: "0.2.0"
-        ),
+        .package(path: "../PrismCore/PrismBackgroundFoundation"),
     ],
     targets: [
         .target(
             name: "ImmersiveKit",
             dependencies: [
-                .product(name: "OKLCHKit", package: "OKLCHKit"),
+                .product(
+                    name: "PrismBackgroundFoundation",
+                    package: "PrismBackgroundFoundation"
+                ),
             ]
         ),
         .testTarget(
