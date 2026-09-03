@@ -13,6 +13,8 @@ public struct ImmersiveImagePageConfiguration {
     public let fallbackBackgroundColor: Color
     public let placeholderPaletteKey: String
     public let placeholderSymbolColor: Color
+    /// Controls the artwork and background shown while the image is unavailable.
+    public let placeholderArtworkStyle: ImmersivePlaceholderArtworkStyle
     public let showsPlaceholder: Bool
     public let crop: ImmersiveArtworkCrop
     public let title: String
@@ -26,6 +28,7 @@ public struct ImmersiveImagePageConfiguration {
         fallbackBackgroundColor: Color,
         placeholderPaletteKey: String,
         placeholderSymbolColor: Color = .white,
+        placeholderArtworkStyle: ImmersivePlaceholderArtworkStyle = .gradient,
         showsPlaceholder: Bool = true,
         crop: ImmersiveArtworkCrop = .square,
         title: String,
@@ -38,6 +41,7 @@ public struct ImmersiveImagePageConfiguration {
         self.fallbackBackgroundColor = fallbackBackgroundColor
         self.placeholderPaletteKey = placeholderPaletteKey
         self.placeholderSymbolColor = placeholderSymbolColor
+        self.placeholderArtworkStyle = placeholderArtworkStyle
         self.showsPlaceholder = showsPlaceholder
         self.crop = crop
         self.title = title

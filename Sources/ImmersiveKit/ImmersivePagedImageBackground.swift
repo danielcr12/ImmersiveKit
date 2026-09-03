@@ -49,6 +49,7 @@ public struct ImmersivePagedImageBackground<
                 fallbackBackgroundColor: pageConfiguration.fallbackBackgroundColor,
                 placeholderPaletteKey: pageConfiguration.placeholderPaletteKey,
                 placeholderSymbolColor: pageConfiguration.placeholderSymbolColor,
+                placeholderArtworkStyle: pageConfiguration.placeholderArtworkStyle,
                 showsPlaceholder: pageConfiguration.showsPlaceholder,
                 crop: pageConfiguration.crop,
                 title: pageConfiguration.title,

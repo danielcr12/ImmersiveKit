@@ -1,4 +1,5 @@
 import CoreGraphics
+import SwiftUI
 import XCTest
 @testable import ImmersiveKit
 
@@ -160,38 +161,29 @@ final class ImmersiveKitTests: XCTestCase {
         XCTAssertEqual(result?.height, 120)
     }
 
-    // MARK: - ImmersiveArtworkMemoryCache
-
-    @MainActor
-    func testColorCacheStoreAndRetrieve() {
-        let key = "unitTest-colorCache-\(UUID())"
-        XCTAssertNil(ImmersiveArtworkMemoryCache.backgroundColor(for: key),
-                     "Fresh key should have no cached color")
-        ImmersiveArtworkMemoryCache.store(.red, for: key)
-        XCTAssertNotNil(ImmersiveArtworkMemoryCache.backgroundColor(for: key),
-                        "Stored color should be retrievable")
-    }
-
-    @MainActor
-    func testColorCacheUpdateExistingKeyPreservesEntry() {
-        let key = "unitTest-colorUpdate-\(UUID())"
-        ImmersiveArtworkMemoryCache.store(.blue, for: key)
-        ImmersiveArtworkMemoryCache.store(.green, for: key)
-        // After updating the same key the entry must still be present.
-        XCTAssertNotNil(ImmersiveArtworkMemoryCache.backgroundColor(for: key))
-    }
-
-    @MainActor
-    func testArtworkCacheStoreAndRetrieve() {
-        guard let image = makeCGImage(width: 4, height: 4) else {
+    func testCropAsyncSquareCropsImageOffTheSynchronousPath() async {
+        guard let source = makeCGImage(width: 200, height: 100) else {
             return XCTFail("Could not create test CGImage")
         }
-        let key = "unitTest-artworkCache-\(UUID())"
-        XCTAssertNil(ImmersiveArtworkMemoryCache.artwork(for: key),
-                     "Fresh key should have no cached artwork")
-        ImmersiveArtworkMemoryCache.storeArtwork(image, for: key)
-        XCTAssertNotNil(ImmersiveArtworkMemoryCache.artwork(for: key),
-                        "Stored artwork should be retrievable")
+        let result = await ImmersiveImageProcessing.crop(source, crop: .square)
+        XCTAssertEqual(result?.width, 100)
+        XCTAssertEqual(result?.height, 100)
+    }
+
+    @MainActor
+    func testCancelledCropDoesNotProduceAStaleResult() async {
+        guard let source = makeCGImage(width: 200, height: 100) else {
+            return XCTFail("Could not create test CGImage")
+        }
+
+        let task = Task { () -> CGImage? in
+            await Task.yield()
+            return await ImmersiveImageProcessing.crop(source, crop: .square)
+        }
+        task.cancel()
+
+        let result = await task.value
+        XCTAssertNil(result)
     }
 
     // MARK: - Helpers

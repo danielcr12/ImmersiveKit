@@ -23,7 +23,7 @@ struct ImmersiveImageArtworkLayer<Placeholder: View>: View {
                         .resizable()
                         .interpolation(.high)
                         .antialiased(true)
-                        .aspectRatio(contentMode: .fill)
+                        .scaledToFill()
                         .frame(
                             width: geometry.size.width,
                             height: geometry.size.height
@@ -129,7 +129,7 @@ private struct ImmersivePlaceholderArtwork<Placeholder: View>: View {
                         .init(color: .clear, location: 0),
                         .init(color: .clear, location: 0.56),
                         .init(color: transitionColor.opacity(0.28), location: 0.78),
-                        .init(color: transitionColor.opacity(0.74), location: 1),
+                        .init(color: transitionColor.opacity(0.74), location: 1)
                     ],
                     startPoint: .top,
                     endPoint: .bottom
@@ -152,40 +152,5 @@ struct ImmersivePaletteGradient: View {
         PrismLayeredGradientBackground(
             colors: palette.layeredColors
         )
-    }
-}
-
-/// An LRU-bounded in-memory cache for derived Prism adaptive palettes.
-/// Separate entries are stored per color scheme to avoid cross-appearance bleed.
-@MainActor
-enum ImmersivePlaceholderPaletteCache {
-    private static var palettes: [String: PrismAdaptiveBackgroundPalette] = [:]
-    private static var accessOrder: [String] = []
-    private static let maxEntries = 80
-
-    static func palette(
-        for key: String,
-        baseColor: Color,
-        colorScheme: ColorScheme
-    ) -> PrismAdaptiveBackgroundPalette {
-        let cacheKey = "\(colorScheme == .dark ? "dark" : "light")-\(key)"
-        if let palette = palettes[cacheKey] {
-            if let index = accessOrder.firstIndex(of: cacheKey) {
-                accessOrder.append(accessOrder.remove(at: index))
-            }
-            return palette
-        }
-
-        let palette = PrismAdaptiveBackgroundPalette(
-            baseColor: baseColor,
-            colorScheme: colorScheme
-        )
-        if palettes.count >= maxEntries, let oldest = accessOrder.first {
-            palettes.removeValue(forKey: oldest)
-            accessOrder.removeFirst()
-        }
-        palettes[cacheKey] = palette
-        accessOrder.append(cacheKey)
-        return palette
     }
 }

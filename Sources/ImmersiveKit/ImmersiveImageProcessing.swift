@@ -12,17 +12,11 @@ public enum ImmersiveImageProcessing {
         crop: ImmersiveArtworkCrop
     ) async -> CGImage? {
         guard let image else { return nil }
-        let source = SendableCGImage(image: image)
-
-        return await Task.detached(priority: .userInitiated) {
-            SendableCGImage(
-                image: cropSynchronously(source.image, crop: crop) ?? source.image
-            )
-        }.value.image
+        guard !Task.isCancelled else { return nil }
+        return await cropOffMainActor(SendableCGImage(image: image), crop: crop)
     }
 
-    /// Synchronous center-square crop; suitable for init-time warm starts where the
-    /// source image is already resident in memory.
+    /// Synchronous center-square crop used by the concurrent processing worker and tests.
     internal static func cropSynchronously(
         _ image: CGImage?,
         crop: ImmersiveArtworkCrop
@@ -46,15 +40,7 @@ public enum ImmersiveImageProcessing {
     @MainActor
     public static func extractBackgroundColor(from image: CGImage) async throws -> Color {
         let source = SendableCGImage(image: image)
-        let components = try await Task.detached(priority: .userInitiated) {
-            let context = CIContext(options: [.cacheIntermediates: false])
-            let image = CIImage(cgImage: source.image)
-            return try averageBottomComponents(
-                from: image,
-                extent: image.extent,
-                context: context
-            )
-        }.value
+        let components = try await extractComponentsOffMainActor(source)
 
         return Color(
             .sRGB,
@@ -63,6 +49,35 @@ public enum ImmersiveImageProcessing {
             blue: components.blue,
             opacity: components.opacity
         )
+    }
+
+    @concurrent
+    private static func cropOffMainActor(
+        _ source: SendableCGImage,
+        crop: ImmersiveArtworkCrop
+    ) async -> CGImage? {
+        guard !Task.isCancelled else { return nil }
+        let image = cropSynchronously(source.image, crop: crop) ?? source.image
+        guard !Task.isCancelled else { return nil }
+        return image
+    }
+
+    @concurrent
+    private static func extractComponentsOffMainActor(
+        _ source: SendableCGImage
+    ) async throws -> RGBAComponents {
+        try Task.checkCancellation()
+
+        let context = CIContext(options: [.cacheIntermediates: false])
+        let image = CIImage(cgImage: source.image)
+        let components = try averageBottomComponents(
+            from: image,
+            extent: image.extent,
+            context: context
+        )
+
+        try Task.checkCancellation()
+        return components
     }
 
     private static func averageBottomComponents(
@@ -120,63 +135,4 @@ private struct RGBAComponents: Sendable {
 
 private enum ImmersiveImageProcessingError: Error {
     case colorExtractionFailed
-}
-
-@MainActor
-enum ImmersiveArtworkMemoryCache {
-    private final class CGImageBox {
-        let image: CGImage
-
-        init(_ image: CGImage) {
-            self.image = image
-        }
-    }
-
-    private static var colors: [String: Color] = [:]
-    private static var accessOrder: [String] = []
-    private static let maxColorEntries = 50
-    private static let artworkCache: NSCache<NSString, CGImageBox> = {
-        let cache = NSCache<NSString, CGImageBox>()
-        cache.countLimit = 16
-        cache.totalCostLimit = 64 * 1024 * 1024
-        return cache
-    }()
-
-    static func backgroundColor(for key: String) -> Color? {
-        guard let color = colors[key] else { return nil }
-        if let index = accessOrder.firstIndex(of: key) {
-            accessOrder.append(accessOrder.remove(at: index))
-        }
-        return color
-    }
-
-    private static func evictColorIfNeeded(for key: String) {
-        // Only evict on insertion of a new key; updates do not grow the count.
-        guard colors[key] == nil,
-              colors.count >= maxColorEntries,
-              let oldest = accessOrder.first else { return }
-        colors.removeValue(forKey: oldest)
-        accessOrder.removeFirst()
-    }
-
-    static func store(_ color: Color, for key: String) {
-        evictColorIfNeeded(for: key)
-        colors[key] = color
-        if let index = accessOrder.firstIndex(of: key) {
-            accessOrder.remove(at: index)
-        }
-        accessOrder.append(key)
-    }
-
-    static func artwork(for key: String) -> CGImage? {
-        artworkCache.object(forKey: key as NSString)?.image
-    }
-
-    static func storeArtwork(_ image: CGImage, for key: String) {
-        artworkCache.setObject(
-            CGImageBox(image),
-            forKey: key as NSString,
-            cost: image.bytesPerRow * image.height
-        )
-    }
 }
