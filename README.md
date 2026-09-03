@@ -9,6 +9,7 @@ It provides:
 - asynchronous bottom-edge color extraction;
 - bounded in-memory artwork and color caches;
 - OKLCH-based placeholder palettes;
+- light- and dark-mode Prism adaptive artwork backgrounds;
 - optional horizontally paged image or custom-artwork backgrounds;
 - smooth artwork-to-background scrims; and
 - modern iOS scroll-edge handling with platform fallbacks.
@@ -51,7 +52,7 @@ Or add it to a package manifest:
 ```swift
 .package(
     url: "https://github.com/danielcr12/ImmersiveKit.git",
-    from: "0.3.0"
+    from: "1.0.0"
 )
 ```
 

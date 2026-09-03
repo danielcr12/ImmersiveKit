@@ -2,6 +2,22 @@
 
 All notable changes to ImmersiveKit are documented in this file.
 
+## 1.0.0 - 2026-09-03
+
+### Added
+- Added Prism adaptive backgrounds that derive light- and dark-mode palettes
+  from the preferred or extracted artwork color.
+- Added `ImmersiveBackgroundTreatment.prismAdaptive` for artwork-to-mesh
+  transitions aligned with PrismCore.
+- Added shared hero-boundary geometry so adaptive mesh transitions follow
+  stretchy pull-down overscroll.
+
+### Changed
+- ImmersiveKit now uses the shared `PrismBackgroundFoundation` rendering and
+  palette APIs.
+- Refactored image processing, cache keys, cancellation, and background state
+  into focused components with expanded test coverage.
+
 ## 0.3.0 - 2026-08-30
 
 ### Added
