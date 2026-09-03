@@ -2,6 +2,14 @@
 
 All notable changes to ImmersiveKit are documented in this file.
 
+## 1.0.1 - 2026-09-03
+
+### Fixed
+
+- ImmersiveKit now resolves `PrismBackgroundFoundation` from its versioned
+  GitHub package so stable Swift Package Manager releases can be consumed
+  directly.
+
 ## 1.0.0 - 2026-09-03
 
 ### Added

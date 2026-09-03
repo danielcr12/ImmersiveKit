@@ -14,6 +14,12 @@ It provides:
 - smooth artwork-to-background scrims; and
 - modern iOS scroll-edge handling with platform fallbacks.
 
+ImmersiveKit uses the versioned
+[PrismBackgroundFoundation](https://github.com/danielcr12/PrismBackgroundFoundation)
+package for shared adaptive background construction and
+[OKLCHKit](https://github.com/danielcr12/OKLCHKit) for perceptual color
+rendering.
+
 Application code supplies presentation values—a stable source identifier, optional `CGImage`, optional precomputed background color, placeholder artwork, text, and content. ImmersiveKit does not depend on an application's persistence or image-loading architecture.
 
 ## Requirements
@@ -52,7 +58,7 @@ Or add it to a package manifest:
 ```swift
 .package(
     url: "https://github.com/danielcr12/ImmersiveKit.git",
-    from: "1.0.0"
+    from: "1.0.1"
 )
 ```
 

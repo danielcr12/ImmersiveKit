@@ -15,7 +15,10 @@ let package = Package(
         ),
     ],
     dependencies: [
-        .package(path: "../PrismCore/PrismBackgroundFoundation"),
+        .package(
+            url: "https://github.com/danielcr12/PrismBackgroundFoundation.git",
+            from: "1.0.0"
+        ),
     ],
     targets: [
         .target(
