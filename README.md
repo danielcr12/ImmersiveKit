@@ -6,7 +6,7 @@ It provides:
 
 - stretchy, overscrolling hero artwork;
 - square or original-aspect image presentation;
-- asynchronous bottom-edge color extraction;
+- asynchronous prominent-color extraction across the image, weighted by opacity;
 - bounded in-memory artwork and color caches;
 - OKLCH-based placeholder palettes;
 - light- and dark-mode Prism adaptive artwork backgrounds;
