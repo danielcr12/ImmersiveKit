@@ -37,6 +37,59 @@ final class ImmersiveKitTests: XCTestCase {
         XCTAssertNil(layout.subtitleLineLimit)
     }
 
+    // MARK: - Immersive image presentation
+
+    func testFocalPointClampsToNormalizedCoordinates() {
+        let focalPoint = ImmersiveImageFocalPoint(x: -0.5, y: 1.5)
+
+        XCTAssertEqual(focalPoint.x, 0)
+        XCTAssertEqual(focalPoint.y, 1)
+    }
+
+    func testFillPlacementPreservesImageAspectRatio() {
+        let placement = ImmersiveImagePlacement.filling(
+            imageSize: CGSize(width: 200, height: 100),
+            containerSize: CGSize(width: 100, height: 100),
+            focalPoint: .center
+        )
+
+        XCTAssertEqual(placement.size, CGSize(width: 200, height: 100))
+        XCTAssertEqual(placement.offset, .zero)
+    }
+
+    func testLeadingFocalPointKeepsLeadingImageEdgeVisible() {
+        let placement = ImmersiveImagePlacement.filling(
+            imageSize: CGSize(width: 200, height: 100),
+            containerSize: CGSize(width: 100, height: 100),
+            focalPoint: ImmersiveImageFocalPoint(x: 0, y: 0.5)
+        )
+
+        XCTAssertEqual(placement.offset.width, 50)
+        XCTAssertEqual(placement.offset.height, 0)
+    }
+
+    func testBottomFocalPointKeepsBottomImageEdgeVisible() {
+        let placement = ImmersiveImagePlacement.filling(
+            imageSize: CGSize(width: 100, height: 200),
+            containerSize: CGSize(width: 100, height: 100),
+            focalPoint: .bottom
+        )
+
+        XCTAssertEqual(placement.offset.width, 0)
+        XCTAssertEqual(placement.offset.height, -50)
+    }
+
+    func testFillPlacementHandlesInvalidGeometry() {
+        let placement = ImmersiveImagePlacement.filling(
+            imageSize: .zero,
+            containerSize: CGSize(width: 100, height: 100),
+            focalPoint: .center
+        )
+
+        XCTAssertEqual(placement.size, .zero)
+        XCTAssertEqual(placement.offset, .zero)
+    }
+
     // MARK: - ImmersiveBackgroundGeometry
 
     func testAdaptiveMeshStartsAtHeroBoundary() {

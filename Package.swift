@@ -5,8 +5,8 @@ import PackageDescription
 let package = Package(
     name: "ImmersiveKit",
     platforms: [
-        .iOS(.v18),
-        .macOS(.v14),
+        .iOS(.v26),
+        .macOS(.v26),
     ],
     products: [
         .library(
@@ -16,8 +16,8 @@ let package = Package(
     ],
     dependencies: [
         .package(
-            url: "https://github.com/danielcr12/PrismBackgroundFoundation.git",
-            from: "1.0.0"
+            url: "https://github.com/danielcr12/PrismCore.git",
+            from: "1.1.0"
         ),
     ],
     targets: [
@@ -25,8 +25,8 @@ let package = Package(
             name: "ImmersiveKit",
             dependencies: [
                 .product(
-                    name: "PrismBackgroundFoundation",
-                    package: "PrismBackgroundFoundation"
+                    name: "PrismCoreBackgrounds",
+                    package: "PrismCore"
                 ),
             ]
         ),

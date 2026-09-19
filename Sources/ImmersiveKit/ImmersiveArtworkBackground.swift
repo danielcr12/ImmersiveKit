@@ -1,4 +1,4 @@
-import PrismBackgroundFoundation
+import PrismCoreBackgrounds
 import SwiftUI
 
 /// Determines how source artwork is cropped before presentation and color analysis.
@@ -116,10 +116,6 @@ public struct ImmersiveArtworkBackground<Artwork: View, Content: View>: View {
 
                 ScrollView {
                     VStack(spacing: 0) {
-                        Color.clear
-                            .frame(height: 0)
-                            .immersiveScrollOffsetFallbackProbe()
-
                         stretchyHero(
                             outerGeometry: outerGeometry,
                             heroHeight: heroHeight
@@ -134,13 +130,8 @@ public struct ImmersiveArtworkBackground<Artwork: View, Content: View>: View {
                 .coordinateSpace(.immersiveArtworkScroll)
                 .immersiveTopScrollEdgeEffectHidden(hidesTopScrollEdgeEffect)
                 .immersiveBottomScrollEdgeEffectVisible()
-                // Scroll tracking: on iOS 18+, `immersiveScrollGeometryProbe` uses
-                // `onScrollGeometryChange` for efficient threshold detection. The
-                // fallback observer handles older OS versions and macOS via a
-                // GeometryReader preference-key probe at the top of the scroll content.
-                .immersiveScrollOffsetFallbackObserver { offsetY in
-                    updateScrollProgress(offsetY: offsetY, heroHeight: heroHeight)
-                }
+                // Track only threshold crossings so scrolling does not invalidate
+                // the full immersive hierarchy for every offset change.
                 .immersiveScrollGeometryProbe(heroHeight: heroHeight) { offsetY in
                     updateScrollProgress(offsetY: offsetY, heroHeight: heroHeight)
                 }

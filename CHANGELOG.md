@@ -2,6 +2,30 @@
 
 All notable changes to ImmersiveKit are documented in this file.
 
+## 1.1.0 - 2026-09-20
+
+### Added
+
+- Added `ImmersiveImageSource` as a shared input for single-page rendering,
+  paged rendering, and prewarming.
+- Added focal-point-aware edge-to-edge image placement without changing source
+  image dimensions.
+
+### Changed
+
+- Consolidated shared adaptive background rendering under PrismCore's
+  `PrismCoreBackgrounds` product and removed the separate
+  `PrismBackgroundFoundation` dependency.
+- Set the package baseline to iOS 26 and macOS 26 and removed compatibility
+  branches for older scrolling and mesh APIs.
+
+### Fixed
+
+- Image processing now restarts when an asynchronously loaded image becomes
+  available under the same stable source ID.
+- Preferred presentation colors no longer pollute extracted-color cache entries.
+- Placeholder palette caching now includes the base color as well as appearance.
+
 ## 1.0.1 - 2026-09-03
 
 ### Fixed

@@ -1,5 +1,5 @@
 import CoreGraphics
-import PrismBackgroundFoundation
+import PrismCoreBackgrounds
 import SwiftUI
 
 struct ImmersiveArtworkCacheKey: Hashable, Sendable {
@@ -49,6 +49,12 @@ private struct ImmersiveLRUCache<Key: Hashable, Value> {
     }
 }
 
+private struct ImmersivePlaceholderPaletteCacheKey: Hashable {
+    let key: String
+    let baseColor: Color
+    let colorScheme: ColorScheme
+}
+
 @MainActor
 enum ImmersiveArtworkMemoryCache {
     private final class CGImageBox {
@@ -69,11 +75,14 @@ enum ImmersiveArtworkMemoryCache {
         return cache
     }()
 
-    static func backgroundColor(for key: ImmersiveArtworkCacheKey) -> Color? {
+    static func extractedBackgroundColor(for key: ImmersiveArtworkCacheKey) -> Color? {
         colors.value(for: key)
     }
 
-    static func store(_ color: Color, for key: ImmersiveArtworkCacheKey) {
+    static func storeExtractedBackgroundColor(
+        _ color: Color,
+        for key: ImmersiveArtworkCacheKey
+    ) {
         colors.insert(color, for: key)
     }
 
@@ -99,16 +108,21 @@ enum ImmersiveArtworkMemoryCache {
 /// Separate entries are stored per color scheme to avoid cross-appearance bleed.
 @MainActor
 enum ImmersivePlaceholderPaletteCache {
-    private static var palettes = ImmersiveLRUCache<String, PrismAdaptiveBackgroundPalette>(
-        capacity: 80
-    )
+    private static var palettes =
+        ImmersiveLRUCache<ImmersivePlaceholderPaletteCacheKey, PrismAdaptiveBackgroundPalette>(
+            capacity: 80
+        )
 
     static func palette(
         for key: String,
         baseColor: Color,
         colorScheme: ColorScheme
     ) -> PrismAdaptiveBackgroundPalette {
-        let cacheKey = "\(colorScheme == .dark ? "dark" : "light")-\(key)"
+        let cacheKey = ImmersivePlaceholderPaletteCacheKey(
+            key: key,
+            baseColor: baseColor,
+            colorScheme: colorScheme
+        )
         if let palette = palettes.value(for: cacheKey) {
             return palette
         }

@@ -1,5 +1,5 @@
 import CoreGraphics
-import PrismBackgroundFoundation
+import PrismCoreBackgrounds
 import SwiftUI
 
 /// A scrolling immersive background backed by an optional `CGImage` and placeholder view.
@@ -14,6 +14,7 @@ public struct ImmersiveImageBackground<Placeholder: View, Content: View>: View {
     private let placeholderArtworkStyle: ImmersivePlaceholderArtworkStyle
     private let showsPlaceholder: Bool
     private let crop: ImmersiveArtworkCrop
+    private let focalPoint: ImmersiveImageFocalPoint
     private let title: String
     private let subtitle: String
     private let layout: ImmersiveArtworkLayout
@@ -21,8 +22,43 @@ public struct ImmersiveImageBackground<Placeholder: View, Content: View>: View {
     private let content: Content
 
     @Environment(\.colorScheme) private var colorScheme
-    @State private var processedImage: CGImage?
-    @State private var extractedBackgroundColor: Color?
+    @State private var loadState: ImmersiveImageLoadState
+
+    /// Creates an image-backed immersive screen from a reusable source value.
+    /// The source ID is also used as the default placeholder palette identity.
+    public init(
+        source: ImmersiveImageSource,
+        fallbackBackgroundColor: Color,
+        placeholderPaletteKey: String? = nil,
+        placeholderSymbolColor: Color = .white,
+        placeholderArtworkStyle: ImmersivePlaceholderArtworkStyle = .gradient,
+        showsPlaceholder: Bool = true,
+        crop: ImmersiveArtworkCrop = .original,
+        focalPoint: ImmersiveImageFocalPoint = .center,
+        title: String,
+        subtitle: String = "",
+        layout: ImmersiveArtworkLayout = .standard,
+        @ViewBuilder placeholder: () -> Placeholder,
+        @ViewBuilder content: () -> Content
+    ) {
+        self.init(
+            sourceID: source.id,
+            sourceImage: source.image,
+            preferredBackgroundColor: source.preferredBackgroundColor,
+            fallbackBackgroundColor: fallbackBackgroundColor,
+            placeholderPaletteKey: placeholderPaletteKey ?? source.id,
+            placeholderSymbolColor: placeholderSymbolColor,
+            placeholderArtworkStyle: placeholderArtworkStyle,
+            showsPlaceholder: showsPlaceholder,
+            crop: crop,
+            focalPoint: focalPoint,
+            title: title,
+            subtitle: subtitle,
+            layout: layout,
+            placeholder: placeholder,
+            content: content
+        )
+    }
 
     public init(
         sourceID: String,
@@ -33,7 +69,8 @@ public struct ImmersiveImageBackground<Placeholder: View, Content: View>: View {
         placeholderSymbolColor: Color = .white,
         placeholderArtworkStyle: ImmersivePlaceholderArtworkStyle = .gradient,
         showsPlaceholder: Bool = true,
-        crop: ImmersiveArtworkCrop = .square,
+        crop: ImmersiveArtworkCrop = .original,
+        focalPoint: ImmersiveImageFocalPoint = .center,
         title: String,
         subtitle: String,
         layout: ImmersiveArtworkLayout = .standard,
@@ -49,18 +86,27 @@ public struct ImmersiveImageBackground<Placeholder: View, Content: View>: View {
         self.placeholderArtworkStyle = placeholderArtworkStyle
         self.showsPlaceholder = showsPlaceholder
         self.crop = crop
+        self.focalPoint = focalPoint
         self.title = title
         self.subtitle = subtitle
         self.layout = layout
         self.placeholder = placeholder()
         self.content = content()
 
-        let key = Self.cacheKey(sourceID: sourceID, crop: crop)
-        self._processedImage = State(
-            initialValue: ImmersiveArtworkMemoryCache.artwork(for: key)
+        let requestID = Self.requestID(
+            sourceID: sourceID,
+            sourceImage: sourceImage,
+            crop: crop,
+            extractsBackgroundColor: preferredBackgroundColor == nil
         )
-        self._extractedBackgroundColor = State(
-            initialValue: ImmersiveArtworkMemoryCache.backgroundColor(for: key)
+        self._loadState = State(
+            initialValue: ImmersiveImageLoadState(
+                requestID: requestID,
+                result: ImmersiveImagePipeline.cachedResult(
+                    key: requestID.cacheKey,
+                    extractsBackgroundColor: requestID.extractsBackgroundColor
+                )
+            )
         )
     }
 
@@ -73,19 +119,20 @@ public struct ImmersiveImageBackground<Placeholder: View, Content: View>: View {
             layout: layout
         ) {
             ImmersiveImageArtworkLayer(
-                image: processedImage,
+                image: currentResult?.image,
                 showsPlaceholder: showsPlaceholder,
                 fallbackBackgroundColor: fallbackBackgroundColor,
                 paletteKey: placeholderPaletteKey,
                 symbolColor: placeholderSymbolColor,
                 placeholderArtworkStyle: placeholderArtworkStyle,
+                focalPoint: focalPoint,
                 placeholder: placeholder
             )
         } content: {
             content
         }
-        .task(id: processingID) {
-            await processImage()
+        .task(id: requestID) {
+            await processImage(for: requestID)
         }
     }
 
@@ -114,7 +161,7 @@ public struct ImmersiveImageBackground<Placeholder: View, Content: View>: View {
         }
 
         return preferredBackgroundColor
-            ?? extractedBackgroundColor
+            ?? currentResult?.extractedBackgroundColor
             ?? ImmersivePlaceholderPaletteCache.palette(
                 for: placeholderPaletteKey,
                 baseColor: fallbackBackgroundColor,
@@ -126,7 +173,7 @@ public struct ImmersiveImageBackground<Placeholder: View, Content: View>: View {
         if usesSolidPlaceholderBackground || usesTransparentPlaceholderBackground {
             return .solidPlaceholder
         }
-        return processedImage == nil ? .exact : .prismAdaptive
+        return currentResult == nil ? .exact : .prismAdaptive
     }
 
     private var usesTransparentPlaceholderBackground: Bool {
@@ -138,77 +185,44 @@ public struct ImmersiveImageBackground<Placeholder: View, Content: View>: View {
     }
 
     private var usesPlaceholderArtwork: Bool {
-        processedImage == nil && showsPlaceholder
+        currentResult == nil && showsPlaceholder
     }
 
-    private var processingID: ImmersiveArtworkCacheKey {
-        Self.cacheKey(sourceID: sourceID, crop: crop)
+    private var requestID: ImmersiveImageRequestID {
+        Self.requestID(
+            sourceID: sourceID,
+            sourceImage: sourceImage,
+            crop: crop,
+            extractsBackgroundColor: preferredBackgroundColor == nil
+        )
     }
 
-    private func processImage() async {
-        let key = processingID
-        guard !Task.isCancelled else { return }
-
-        guard let image = await loadImage(for: key) else {
-            guard !Task.isCancelled else { return }
-            processedImage = nil
-            extractedBackgroundColor = nil
-            return
-        }
-
-        guard !Task.isCancelled else { return }
-        processedImage = image
-
-        guard let color = await loadBackgroundColor(for: key, image: image) else {
-            return
-        }
-
-        guard !Task.isCancelled else { return }
-        extractedBackgroundColor = color
-        ImmersiveArtworkMemoryCache.store(color, for: key)
+    private var currentResult: ImmersiveProcessedImage? {
+        guard loadState.requestID.matchesImageInput(of: requestID) else { return nil }
+        return loadState.result
     }
 
-    private func loadImage(for key: ImmersiveArtworkCacheKey) async -> CGImage? {
-        if let cachedImage = ImmersiveArtworkMemoryCache.artwork(for: key) {
-            return cachedImage
-        }
-
-        guard let image = await ImmersiveImageProcessing.crop(sourceImage, crop: crop) else {
-            return nil
-        }
-        guard !Task.isCancelled else { return nil }
-
-        ImmersiveArtworkMemoryCache.storeArtwork(image, for: key)
-        return image
+    private func processImage(for requestID: ImmersiveImageRequestID) async {
+        let result = await ImmersiveImagePipeline.process(
+            sourceImage: sourceImage,
+            key: requestID.cacheKey,
+            extractsBackgroundColor: requestID.extractsBackgroundColor
+        )
+        guard !Task.isCancelled, requestID == self.requestID else { return }
+        loadState = ImmersiveImageLoadState(requestID: requestID, result: result)
     }
 
-    private func loadBackgroundColor(
-        for key: ImmersiveArtworkCacheKey,
-        image: CGImage
-    ) async -> Color? {
-        if let preferredBackgroundColor {
-            ImmersiveArtworkMemoryCache.store(preferredBackgroundColor, for: key)
-            return preferredBackgroundColor
-        }
-
-        if let cachedColor = ImmersiveArtworkMemoryCache.backgroundColor(for: key) {
-            return cachedColor
-        }
-
-        do {
-            return try await ImmersiveImageProcessing.extractBackgroundColor(from: image)
-        } catch is CancellationError {
-            return nil
-        } catch {
-            return nil
-        }
-    }
-
-    private static func cacheKey(
+    private static func requestID(
         sourceID: String,
-        crop: ImmersiveArtworkCrop
-    ) -> ImmersiveArtworkCacheKey {
-        ImmersiveArtworkCacheKey(sourceID: sourceID, crop: crop)
+        sourceImage: CGImage?,
+        crop: ImmersiveArtworkCrop,
+        extractsBackgroundColor: Bool
+    ) -> ImmersiveImageRequestID {
+        ImmersiveImageRequestID(
+            cacheKey: ImmersiveArtworkCacheKey(sourceID: sourceID, crop: crop),
+            sourceImage: sourceImage,
+            extractsBackgroundColor: extractsBackgroundColor
+        )
     }
 }
 
@@ -220,40 +234,28 @@ public struct ImmersiveImageBackground<Placeholder: View, Content: View>: View {
 @MainActor
 public enum ImmersiveImagePrewarmer {
     public static func prewarm(
+        source: ImmersiveImageSource,
+        crop: ImmersiveArtworkCrop = .original
+    ) async {
+        await prewarm(
+            sourceID: source.id,
+            sourceImage: source.image,
+            preferredBackgroundColor: source.preferredBackgroundColor,
+            crop: crop
+        )
+    }
+
+    public static func prewarm(
         sourceID: String,
         sourceImage: CGImage?,
         preferredBackgroundColor: Color? = nil,
-        crop: ImmersiveArtworkCrop = .square
+        crop: ImmersiveArtworkCrop = .original
     ) async {
         let key = ImmersiveArtworkCacheKey(sourceID: sourceID, crop: crop)
-
-        if ImmersiveArtworkMemoryCache.artwork(for: key) == nil {
-            guard let image = await ImmersiveImageProcessing.crop(sourceImage, crop: crop) else {
-                return
-            }
-            guard !Task.isCancelled else { return }
-            ImmersiveArtworkMemoryCache.storeArtwork(image, for: key)
-        }
-
-        guard !Task.isCancelled else { return }
-        guard ImmersiveArtworkMemoryCache.backgroundColor(for: key) == nil else { return }
-
-        if let preferredBackgroundColor {
-            ImmersiveArtworkMemoryCache.store(preferredBackgroundColor, for: key)
-            return
-        }
-
-        guard let artwork = ImmersiveArtworkMemoryCache.artwork(for: key) else { return }
-        do {
-            let color = try await ImmersiveImageProcessing.extractBackgroundColor(
-                from: artwork
-            )
-            guard !Task.isCancelled else { return }
-            ImmersiveArtworkMemoryCache.store(color, for: key)
-        } catch is CancellationError {
-            return
-        } catch {
-            return
-        }
+        _ = await ImmersiveImagePipeline.process(
+            sourceImage: sourceImage,
+            key: key,
+            extractsBackgroundColor: preferredBackgroundColor == nil
+        )
     }
 }

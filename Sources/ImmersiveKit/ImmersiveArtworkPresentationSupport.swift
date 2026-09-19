@@ -1,5 +1,5 @@
 import Observation
-import PrismBackgroundFoundation
+import PrismCoreBackgrounds
 import SwiftUI
 
 @MainActor
@@ -198,23 +198,11 @@ private struct ImmersiveArtworkOverlayLayer: View {
     }
 }
 
-struct ImmersiveScrollOffsetPreferenceKey: PreferenceKey {
-    static var defaultValue: CGFloat { 0 }
-
-    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) {
-        value = nextValue()
-    }
-}
-
 extension View {
     @ViewBuilder
     func immersiveTopScrollEdgeEffectHidden(_ hidden: Bool) -> some View {
 #if os(iOS)
-        if #available(iOS 26.0, *) {
-            scrollEdgeEffectHidden(hidden, for: .top)
-        } else {
-            self
-        }
+        scrollEdgeEffectHidden(hidden, for: .top)
 #else
         self
 #endif
@@ -223,11 +211,7 @@ extension View {
     @ViewBuilder
     func immersiveBottomScrollEdgeEffectVisible() -> some View {
 #if os(iOS)
-        if #available(iOS 26.0, *) {
-            scrollEdgeEffectHidden(false, for: .bottom)
-        } else {
-            self
-        }
+        scrollEdgeEffectHidden(false, for: .bottom)
 #else
         self
 #endif
@@ -238,69 +222,15 @@ extension View {
         heroHeight: CGFloat,
         onSample: @escaping (CGFloat) -> Void
     ) -> some View {
-#if os(iOS)
-        if #available(iOS 18.0, *) {
-            onScrollGeometryChange(for: Bool.self) { geometry in
-                let height = max(heroHeight, 1)
-                let progress = min(max(geometry.contentOffset.y / height, 0), 1)
-                return progress < ImmersiveArtworkTuning.scrollEdgeRevealProgress
-            } action: { _, hidesTopScrollEdgeEffect in
-                let progress = hidesTopScrollEdgeEffect
-                    ? CGFloat.zero
-                    : ImmersiveArtworkTuning.scrollEdgeRevealProgress
-                onSample(progress * max(heroHeight, 1))
-            }
-        } else {
-            self
-        }
-#else
-        self
-#endif
-    }
-
-    @ViewBuilder
-    func immersiveScrollOffsetFallbackObserver(
-        onSample: @escaping (CGFloat) -> Void
-    ) -> some View {
-#if os(iOS)
-        if #available(iOS 18.0, *) {
-            self
-        } else {
-            onPreferenceChange(ImmersiveScrollOffsetPreferenceKey.self) { offsetY in
-                onSample(offsetY)
-            }
-        }
-#else
-        onPreferenceChange(ImmersiveScrollOffsetPreferenceKey.self) { offsetY in
-            onSample(offsetY)
-        }
-#endif
-    }
-
-    @ViewBuilder
-    func immersiveScrollOffsetFallbackProbe() -> some View {
-#if os(iOS)
-        if #available(iOS 18.0, *) {
-            self
-        } else {
-            immersiveScrollOffsetPreference()
-        }
-#else
-        immersiveScrollOffsetPreference()
-#endif
-    }
-
-    private func immersiveScrollOffsetPreference() -> some View {
-        background {
-            GeometryReader { geometry in
-                Color.clear.preference(
-                    key: ImmersiveScrollOffsetPreferenceKey.self,
-                    value: max(
-                        0,
-                        -geometry.frame(in: NamedCoordinateSpace.immersiveArtworkScroll).minY
-                    )
-                )
-            }
+        onScrollGeometryChange(for: Bool.self) { geometry in
+            let height = max(heroHeight, 1)
+            let progress = min(max(geometry.contentOffset.y / height, 0), 1)
+            return progress < ImmersiveArtworkTuning.scrollEdgeRevealProgress
+        } action: { _, hidesTopScrollEdgeEffect in
+            let progress = hidesTopScrollEdgeEffect
+                ? CGFloat.zero
+                : ImmersiveArtworkTuning.scrollEdgeRevealProgress
+            onSample(progress * max(heroHeight, 1))
         }
     }
 }

@@ -1,4 +1,4 @@
-import PrismBackgroundFoundation
+import PrismCoreBackgrounds
 import SwiftUI
 
 /// Composition layer that displays a processed `CGImage` hero or falls back to the
@@ -11,6 +11,7 @@ struct ImmersiveImageArtworkLayer<Placeholder: View>: View {
     let paletteKey: String
     let symbolColor: Color
     let placeholderArtworkStyle: ImmersivePlaceholderArtworkStyle
+    let focalPoint: ImmersiveImageFocalPoint
     let placeholder: Placeholder
 
     @Environment(\.colorScheme) private var colorScheme
@@ -19,11 +20,24 @@ struct ImmersiveImageArtworkLayer<Placeholder: View>: View {
         GeometryReader { geometry in
             Group {
                 if let image {
+                    let placement = ImmersiveImagePlacement.filling(
+                        imageSize: CGSize(width: image.width, height: image.height),
+                        containerSize: geometry.size,
+                        focalPoint: focalPoint
+                    )
+
                     Image(decorative: image, scale: 1, orientation: .up)
                         .resizable()
                         .interpolation(.high)
                         .antialiased(true)
-                        .scaledToFill()
+                        .frame(
+                            width: placement.size.width,
+                            height: placement.size.height
+                        )
+                        .offset(
+                            x: placement.offset.width,
+                            y: placement.offset.height
+                        )
                         .frame(
                             width: geometry.size.width,
                             height: geometry.size.height

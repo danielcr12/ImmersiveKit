@@ -37,17 +37,12 @@ public struct ImmersivePagedContainer<
         phaseTrackedScrollView
     }
 
-    @ViewBuilder
     private var phaseTrackedScrollView: some View {
-        if #available(iOS 18.0, macOS 15.0, *) {
-            pagingScrollView
-                .onScrollPhaseChange { _, newPhase in
-                    guard newPhase == .idle else { return }
-                    commitPendingInteractiveSelection()
-                }
-        } else {
-            pagingScrollView
-        }
+        pagingScrollView
+            .onScrollPhaseChange { _, newPhase in
+                guard newPhase == .idle else { return }
+                commitPendingInteractiveSelection()
+            }
     }
 
     private var pagingScrollView: some View {
@@ -79,17 +74,6 @@ public struct ImmersivePagedContainer<
         pages.map(\.id)
     }
 
-    private var commitsInteractiveSelectionImmediately: Bool {
-#if os(macOS)
-        if #available(macOS 15.0, *) {
-            return false
-        }
-        return true
-#else
-        return false
-#endif
-    }
-
     private func handleSelectionChange(_ newSelection: Pages.Element.ID) {
         guard pageIDs.contains(newSelection) else {
             reconcileSelection(with: pageIDs)
@@ -103,10 +87,6 @@ public struct ImmersivePagedContainer<
         _ newScrollPosition: Pages.Element.ID?
     ) {
         pendingInteractiveSelection = newScrollPosition
-
-        if commitsInteractiveSelectionImmediately {
-            commitPendingInteractiveSelection()
-        }
     }
 
     private func commitPendingInteractiveSelection() {

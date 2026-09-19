@@ -14,9 +14,9 @@ It provides:
 - smooth artwork-to-background scrims; and
 - modern iOS scroll-edge handling with platform fallbacks.
 
-ImmersiveKit uses the versioned
-[PrismBackgroundFoundation](https://github.com/danielcr12/PrismBackgroundFoundation)
-package for shared adaptive background construction and
+ImmersiveKit uses the `PrismCoreBackgrounds` product from the
+[PrismCore](https://github.com/danielcr12/PrismCore) package for shared adaptive
+background construction and
 [OKLCHKit](https://github.com/danielcr12/OKLCHKit) for perceptual color
 rendering.
 
@@ -25,8 +25,8 @@ Application code supplies presentation values—a stable source identifier, opti
 ## Requirements
 
 - Swift 6.3+
-- iOS 18+
-- macOS 14+
+- iOS 26+
+- macOS 26+
 
 ## Installation
 
@@ -58,7 +58,7 @@ Or add it to a package manifest:
 ```swift
 .package(
     url: "https://github.com/danielcr12/ImmersiveKit.git",
-    from: "1.0.1"
+    from: "1.1.0"
 )
 ```
 
@@ -72,12 +72,17 @@ in a new Git tag.
 import ImmersiveKit
 import SwiftUI
 
+let source = ImmersiveImageSource(
+    id: photo.revisionID,
+    image: photo.cgImage,
+    preferredBackgroundColor: photo.savedBackgroundColor
+)
+
 ImmersiveImageBackground(
-    sourceID: photo.revisionID,
-    sourceImage: photo.cgImage,
-    preferredBackgroundColor: photo.savedBackgroundColor,
+    source: source,
     fallbackBackgroundColor: .blue,
-    placeholderPaletteKey: "profile",
+    crop: .original,
+    focalPoint: .init(x: 0.5, y: 0.35),
     title: "Milo",
     subtitle: "Dog"
 ) {
@@ -88,6 +93,18 @@ ImmersiveImageBackground(
     DetailContent()
 }
 ```
+
+The same `ImmersiveImageSource` can be passed to
+`ImmersiveImagePrewarmer.prewarm(source:)` and to an
+`ImmersiveImagePageConfiguration`. The source ID becomes the placeholder palette
+identity unless a separate key is needed.
+
+Image-backed heroes fill the hero edge to edge while preserving the source
+aspect ratio. Use `focalPoint` to identify the pet or other subject that
+should remain visible as the hero changes aspect ratio. Coordinates are
+normalized from the source image's top-leading corner; `.center`, `.top`, and
+`.bottom` are provided for common cases. Pass `crop: .square` only when the
+source itself should be center-cropped before presentation.
 
 `ImmersiveImageBackground` and `ImmersiveArtworkBackground` are always
 single-page. They do not create paging state, gestures, indicators, or
@@ -126,8 +143,10 @@ ImmersivePagedImageBackground(
     )
 ) { profile in
     ImmersiveImagePageConfiguration(
-        sourceID: profile.photoRevision,
-        sourceImage: profile.photo,
+        source: ImmersiveImageSource(
+            id: profile.photoRevision,
+            image: profile.photo
+        ),
         fallbackBackgroundColor: profile.themeColor,
         placeholderPaletteKey: "profile-\(profile.id)",
         title: profile.name,
@@ -155,9 +174,8 @@ ImmersivePagedContainer(
 }
 ```
 
-The selection binding follows the settled page on iOS 18+ and macOS 15+.
-macOS 14 uses the current visible page because settled scroll-phase observation
-is not available there. Programmatic selection uses the animation from
+The selection binding follows the settled page on iOS 26 and macOS 26.
+Programmatic selection uses the animation from
 `ImmersivePaginationConfiguration`, and Reduce Motion is respected
 automatically. Image-backed pages should use a revision-aware `sourceID` when
 their image can change without their model ID changing.

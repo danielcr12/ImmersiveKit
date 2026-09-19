@@ -17,9 +17,42 @@ public struct ImmersiveImagePageConfiguration {
     public let placeholderArtworkStyle: ImmersivePlaceholderArtworkStyle
     public let showsPlaceholder: Bool
     public let crop: ImmersiveArtworkCrop
+    public let focalPoint: ImmersiveImageFocalPoint
     public let title: String
     public let subtitle: String
     public let layout: ImmersiveArtworkLayout
+
+    /// Creates a page configuration from the same reusable source value used by
+    /// ``ImmersiveImageBackground`` and ``ImmersiveImagePrewarmer``.
+    public init(
+        source: ImmersiveImageSource,
+        fallbackBackgroundColor: Color,
+        placeholderPaletteKey: String? = nil,
+        placeholderSymbolColor: Color = .white,
+        placeholderArtworkStyle: ImmersivePlaceholderArtworkStyle = .gradient,
+        showsPlaceholder: Bool = true,
+        crop: ImmersiveArtworkCrop = .original,
+        focalPoint: ImmersiveImageFocalPoint = .center,
+        title: String,
+        subtitle: String = "",
+        layout: ImmersiveArtworkLayout = .standard
+    ) {
+        self.init(
+            sourceID: source.id,
+            sourceImage: source.image,
+            preferredBackgroundColor: source.preferredBackgroundColor,
+            fallbackBackgroundColor: fallbackBackgroundColor,
+            placeholderPaletteKey: placeholderPaletteKey ?? source.id,
+            placeholderSymbolColor: placeholderSymbolColor,
+            placeholderArtworkStyle: placeholderArtworkStyle,
+            showsPlaceholder: showsPlaceholder,
+            crop: crop,
+            focalPoint: focalPoint,
+            title: title,
+            subtitle: subtitle,
+            layout: layout
+        )
+    }
 
     public init(
         sourceID: String,
@@ -30,7 +63,8 @@ public struct ImmersiveImagePageConfiguration {
         placeholderSymbolColor: Color = .white,
         placeholderArtworkStyle: ImmersivePlaceholderArtworkStyle = .gradient,
         showsPlaceholder: Bool = true,
-        crop: ImmersiveArtworkCrop = .square,
+        crop: ImmersiveArtworkCrop = .original,
+        focalPoint: ImmersiveImageFocalPoint = .center,
         title: String,
         subtitle: String,
         layout: ImmersiveArtworkLayout = .standard
@@ -44,6 +78,7 @@ public struct ImmersiveImagePageConfiguration {
         self.placeholderArtworkStyle = placeholderArtworkStyle
         self.showsPlaceholder = showsPlaceholder
         self.crop = crop
+        self.focalPoint = focalPoint
         self.title = title
         self.subtitle = subtitle
         self.layout = layout

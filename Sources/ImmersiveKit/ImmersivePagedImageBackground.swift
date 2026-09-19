@@ -52,6 +52,7 @@ public struct ImmersivePagedImageBackground<
                 placeholderArtworkStyle: pageConfiguration.placeholderArtworkStyle,
                 showsPlaceholder: pageConfiguration.showsPlaceholder,
                 crop: pageConfiguration.crop,
+                focalPoint: pageConfiguration.focalPoint,
                 title: pageConfiguration.title,
                 subtitle: pageConfiguration.subtitle,
                 layout: pageConfiguration.layout

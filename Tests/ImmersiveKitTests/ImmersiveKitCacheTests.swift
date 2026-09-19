@@ -10,12 +10,15 @@ final class ImmersiveKitCacheTests: XCTestCase {
         let key = makeKey("colorCache")
 
         XCTAssertNil(
-            ImmersiveArtworkMemoryCache.backgroundColor(for: key),
+            ImmersiveArtworkMemoryCache.extractedBackgroundColor(for: key),
             "Fresh key should have no cached color"
         )
-        ImmersiveArtworkMemoryCache.store(.red, for: key)
+        ImmersiveArtworkMemoryCache.storeExtractedBackgroundColor(
+            .red,
+            for: key
+        )
         XCTAssertNotNil(
-            ImmersiveArtworkMemoryCache.backgroundColor(for: key),
+            ImmersiveArtworkMemoryCache.extractedBackgroundColor(for: key),
             "Stored color should be retrievable"
         )
     }
@@ -25,10 +28,18 @@ final class ImmersiveKitCacheTests: XCTestCase {
         ImmersiveArtworkMemoryCache.removeAllForTesting()
         let key = makeKey("colorUpdate")
 
-        ImmersiveArtworkMemoryCache.store(.blue, for: key)
-        ImmersiveArtworkMemoryCache.store(.green, for: key)
+        ImmersiveArtworkMemoryCache.storeExtractedBackgroundColor(
+            .blue,
+            for: key
+        )
+        ImmersiveArtworkMemoryCache.storeExtractedBackgroundColor(
+            .green,
+            for: key
+        )
 
-        XCTAssertNotNil(ImmersiveArtworkMemoryCache.backgroundColor(for: key))
+        XCTAssertNotNil(
+            ImmersiveArtworkMemoryCache.extractedBackgroundColor(for: key)
+        )
     }
 
     @MainActor
@@ -51,11 +62,23 @@ final class ImmersiveKitCacheTests: XCTestCase {
         let squareKey = ImmersiveArtworkCacheKey(sourceID: sourceID, crop: .square)
         let originalKey = ImmersiveArtworkCacheKey(sourceID: sourceID, crop: .original)
 
-        ImmersiveArtworkMemoryCache.store(.red, for: squareKey)
-        ImmersiveArtworkMemoryCache.store(.blue, for: originalKey)
+        ImmersiveArtworkMemoryCache.storeExtractedBackgroundColor(
+            .red,
+            for: squareKey
+        )
+        ImmersiveArtworkMemoryCache.storeExtractedBackgroundColor(
+            .blue,
+            for: originalKey
+        )
 
-        XCTAssertEqual(ImmersiveArtworkMemoryCache.backgroundColor(for: squareKey), .red)
-        XCTAssertEqual(ImmersiveArtworkMemoryCache.backgroundColor(for: originalKey), .blue)
+        XCTAssertEqual(
+            ImmersiveArtworkMemoryCache.extractedBackgroundColor(for: squareKey),
+            .red
+        )
+        XCTAssertEqual(
+            ImmersiveArtworkMemoryCache.extractedBackgroundColor(for: originalKey),
+            .blue
+        )
     }
 
     @MainActor
@@ -69,20 +92,34 @@ final class ImmersiveKitCacheTests: XCTestCase {
         }
 
         for key in keys {
-            ImmersiveArtworkMemoryCache.store(.red, for: key)
+            ImmersiveArtworkMemoryCache.storeExtractedBackgroundColor(
+                .red,
+                for: key
+            )
         }
-        XCTAssertNotNil(ImmersiveArtworkMemoryCache.backgroundColor(for: keys[0]))
+        XCTAssertNotNil(
+            ImmersiveArtworkMemoryCache.extractedBackgroundColor(for: keys[0])
+        )
 
         let newKey = makeKey("lru-new")
-        ImmersiveArtworkMemoryCache.store(.blue, for: newKey)
+        ImmersiveArtworkMemoryCache.storeExtractedBackgroundColor(
+            .blue,
+            for: newKey
+        )
 
-        XCTAssertNotNil(ImmersiveArtworkMemoryCache.backgroundColor(for: keys[0]))
-        XCTAssertNil(ImmersiveArtworkMemoryCache.backgroundColor(for: keys[1]))
-        XCTAssertNotNil(ImmersiveArtworkMemoryCache.backgroundColor(for: newKey))
+        XCTAssertNotNil(
+            ImmersiveArtworkMemoryCache.extractedBackgroundColor(for: keys[0])
+        )
+        XCTAssertNil(
+            ImmersiveArtworkMemoryCache.extractedBackgroundColor(for: keys[1])
+        )
+        XCTAssertNotNil(
+            ImmersiveArtworkMemoryCache.extractedBackgroundColor(for: newKey)
+        )
     }
 
     @MainActor
-    func testPrewarmStoresArtworkAndPreferredBackgroundColor() async {
+    func testPrewarmStoresArtworkWithoutCachingPresentationOverride() async {
         ImmersiveArtworkMemoryCache.removeAllForTesting()
         guard let source = makeCGImage(width: 120, height: 80) else {
             return XCTFail("Could not create test CGImage")
@@ -98,17 +135,19 @@ final class ImmersiveKitCacheTests: XCTestCase {
         )
 
         XCTAssertNotNil(ImmersiveArtworkMemoryCache.artwork(for: key))
-        XCTAssertEqual(ImmersiveArtworkMemoryCache.backgroundColor(for: key), .green)
+        XCTAssertNil(
+            ImmersiveArtworkMemoryCache.extractedBackgroundColor(for: key)
+        )
     }
 
     @MainActor
-    func testPrewarmReusesExistingPreferredBackgroundColor() async {
+    func testPrewarmDoesNotSharePreferredColorsBetweenPresentations() async {
         ImmersiveArtworkMemoryCache.removeAllForTesting()
         guard let source = makeCGImage(width: 40, height: 40) else {
             return XCTFail("Could not create test CGImage")
         }
         let sourceID = "unitTest-prewarm-reuse-\(UUID())"
-        let key = ImmersiveArtworkCacheKey(sourceID: sourceID, crop: .square)
+        let key = ImmersiveArtworkCacheKey(sourceID: sourceID, crop: .original)
 
         await ImmersiveImagePrewarmer.prewarm(
             sourceID: sourceID,
@@ -121,7 +160,46 @@ final class ImmersiveKitCacheTests: XCTestCase {
             preferredBackgroundColor: .red
         )
 
-        XCTAssertEqual(ImmersiveArtworkMemoryCache.backgroundColor(for: key), .green)
+        XCTAssertNil(
+            ImmersiveArtworkMemoryCache.extractedBackgroundColor(for: key)
+        )
+    }
+
+    func testRequestIdentityChangesWhenAnImageFinishesLoading() {
+        guard let image = makeCGImage(width: 40, height: 40) else {
+            return XCTFail("Could not create test CGImage")
+        }
+        let key = makeKey("imageArrival")
+        let waiting = ImmersiveImageRequestID(
+            cacheKey: key,
+            sourceImage: nil,
+            extractsBackgroundColor: true
+        )
+        let loaded = ImmersiveImageRequestID(
+            cacheKey: key,
+            sourceImage: image,
+            extractsBackgroundColor: true
+        )
+
+        XCTAssertNotEqual(waiting, loaded)
+    }
+
+    @MainActor
+    func testPlaceholderPaletteCacheIncludesBaseColor() {
+        ImmersivePlaceholderPaletteCache.removeAllForTesting()
+
+        let redPalette = ImmersivePlaceholderPaletteCache.palette(
+            for: "shared",
+            baseColor: .red,
+            colorScheme: .light
+        )
+        let bluePalette = ImmersivePlaceholderPaletteCache.palette(
+            for: "shared",
+            baseColor: .blue,
+            colorScheme: .light
+        )
+
+        XCTAssertNotEqual(redPalette, bluePalette)
     }
 
     func testImagePageConfigurationDefaultsToGradientPlaceholder() {
@@ -149,6 +227,19 @@ final class ImmersiveKitCacheTests: XCTestCase {
         )
 
         XCTAssertEqual(configuration.placeholderArtworkStyle, .transparent)
+    }
+
+    func testImageSourceProvidesSimplePageConfigurationDefaults() {
+        let source = ImmersiveImageSource(id: "unitTest-source", image: nil)
+        let configuration = ImmersiveImagePageConfiguration(
+            source: source,
+            fallbackBackgroundColor: .blue,
+            title: "Title"
+        )
+
+        XCTAssertEqual(configuration.sourceID, source.id)
+        XCTAssertEqual(configuration.placeholderPaletteKey, source.id)
+        XCTAssertEqual(configuration.subtitle, "")
     }
 
     private func makeKey(_ label: String) -> ImmersiveArtworkCacheKey {
