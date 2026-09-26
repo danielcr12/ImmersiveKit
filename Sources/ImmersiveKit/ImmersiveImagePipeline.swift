@@ -3,15 +3,18 @@ import SwiftUI
 
 struct ImmersiveImageRequestID: Hashable {
     let cacheKey: ImmersiveArtworkCacheKey
+    let contentID: String
     let hasSourceImage: Bool
     let extractsBackgroundColor: Bool
 
     init(
         cacheKey: ImmersiveArtworkCacheKey,
+        contentID: String? = nil,
         sourceImage: CGImage?,
         extractsBackgroundColor: Bool
     ) {
         self.cacheKey = cacheKey
+        self.contentID = contentID ?? cacheKey.sourceID
         self.hasSourceImage = sourceImage != nil
         self.extractsBackgroundColor = extractsBackgroundColor
     }
@@ -29,6 +32,18 @@ struct ImmersiveProcessedImage {
 struct ImmersiveImageLoadState {
     let requestID: ImmersiveImageRequestID
     let result: ImmersiveProcessedImage?
+
+    /// Keep a ready rendition during upgrades of the same logical content,
+    /// but never carry it across deletion or a different profile/page.
+    func displayedResult(
+        for request: ImmersiveImageRequestID,
+        cachedResult: ImmersiveProcessedImage?
+    ) -> ImmersiveProcessedImage? {
+        guard request.hasSourceImage else { return nil }
+        if let cachedResult { return cachedResult }
+        guard requestID.contentID == request.contentID else { return nil }
+        return result
+    }
 }
 
 /// Owns cache lookup, image preparation, and color extraction so rendering and

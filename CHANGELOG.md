@@ -2,6 +2,15 @@
 
 All notable changes to ImmersiveKit are documented in this file.
 
+## Unreleased
+
+- `ImmersiveImageBackground` accepts an optional stable `contentID` to retain
+  ready artwork and its extracted color while another rendition is processed.
+  Source IDs remain revision-specific cache keys. Deletion and changing content
+  identity still clear the old artwork.
+- Source changes use already-prewarmed artwork immediately without resetting
+  the scrolling container or its content state.
+
 ## 1.1.0 - 2026-09-20
 
 ### Added

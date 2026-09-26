@@ -6,6 +6,7 @@ import SwiftUI
 @MainActor
 public struct ImmersiveImageBackground<Placeholder: View, Content: View>: View {
     private let sourceID: String
+    private let contentID: String?
     private let sourceImage: CGImage?
     private let preferredBackgroundColor: Color?
     private let fallbackBackgroundColor: Color
@@ -26,8 +27,11 @@ public struct ImmersiveImageBackground<Placeholder: View, Content: View>: View {
 
     /// Creates an image-backed immersive screen from a reusable source value.
     /// The source ID is also used as the default placeholder palette identity.
+    /// Supply a stable `contentID` for multiple renditions of the same photo.
+    /// Keep the source ID revision-specific so processing caches stay correct.
     public init(
         source: ImmersiveImageSource,
+        contentID: String? = nil,
         fallbackBackgroundColor: Color,
         placeholderPaletteKey: String? = nil,
         placeholderSymbolColor: Color = .white,
@@ -43,6 +47,7 @@ public struct ImmersiveImageBackground<Placeholder: View, Content: View>: View {
     ) {
         self.init(
             sourceID: source.id,
+            contentID: contentID,
             sourceImage: source.image,
             preferredBackgroundColor: source.preferredBackgroundColor,
             fallbackBackgroundColor: fallbackBackgroundColor,
@@ -60,8 +65,12 @@ public struct ImmersiveImageBackground<Placeholder: View, Content: View>: View {
         )
     }
 
+    /// `contentID` identifies the logical artwork across source revisions. When
+    /// supplied, an existing rendition stays visible until its replacement is
+    /// processed. A nil source image still clears artwork immediately.
     public init(
         sourceID: String,
+        contentID: String? = nil,
         sourceImage: CGImage?,
         preferredBackgroundColor: Color? = nil,
         fallbackBackgroundColor: Color,
@@ -78,6 +87,7 @@ public struct ImmersiveImageBackground<Placeholder: View, Content: View>: View {
         @ViewBuilder content: () -> Content
     ) {
         self.sourceID = sourceID
+        self.contentID = contentID
         self.sourceImage = sourceImage
         self.preferredBackgroundColor = preferredBackgroundColor
         self.fallbackBackgroundColor = fallbackBackgroundColor
@@ -95,6 +105,7 @@ public struct ImmersiveImageBackground<Placeholder: View, Content: View>: View {
 
         let requestID = Self.requestID(
             sourceID: sourceID,
+            contentID: contentID,
             sourceImage: sourceImage,
             crop: crop,
             extractsBackgroundColor: preferredBackgroundColor == nil
@@ -191,6 +202,7 @@ public struct ImmersiveImageBackground<Placeholder: View, Content: View>: View {
     private var requestID: ImmersiveImageRequestID {
         Self.requestID(
             sourceID: sourceID,
+            contentID: contentID,
             sourceImage: sourceImage,
             crop: crop,
             extractsBackgroundColor: preferredBackgroundColor == nil
@@ -198,8 +210,16 @@ public struct ImmersiveImageBackground<Placeholder: View, Content: View>: View {
     }
 
     private var currentResult: ImmersiveProcessedImage? {
-        guard loadState.requestID.matchesImageInput(of: requestID) else { return nil }
-        return loadState.result
+        let request = requestID
+        guard request.hasSourceImage else { return nil }
+        if loadState.requestID == request { return loadState.result }
+        return loadState.displayedResult(
+            for: request,
+            cachedResult: ImmersiveImagePipeline.cachedResult(
+                key: request.cacheKey,
+                extractsBackgroundColor: request.extractsBackgroundColor
+            )
+        )
     }
 
     private func processImage(for requestID: ImmersiveImageRequestID) async {
@@ -209,17 +229,21 @@ public struct ImmersiveImageBackground<Placeholder: View, Content: View>: View {
             extractsBackgroundColor: requestID.extractsBackgroundColor
         )
         guard !Task.isCancelled, requestID == self.requestID else { return }
+        // A failed replacement must not erase a previously ready rendition.
+        guard result != nil || sourceImage == nil else { return }
         loadState = ImmersiveImageLoadState(requestID: requestID, result: result)
     }
 
     private static func requestID(
         sourceID: String,
+        contentID: String?,
         sourceImage: CGImage?,
         crop: ImmersiveArtworkCrop,
         extractsBackgroundColor: Bool
     ) -> ImmersiveImageRequestID {
         ImmersiveImageRequestID(
             cacheKey: ImmersiveArtworkCacheKey(sourceID: sourceID, crop: crop),
+            contentID: contentID,
             sourceImage: sourceImage,
             extractsBackgroundColor: extractsBackgroundColor
         )
