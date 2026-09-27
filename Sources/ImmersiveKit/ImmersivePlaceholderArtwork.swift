@@ -1,4 +1,5 @@
 import PrismCoreBackgrounds
+import Foundation
 import SwiftUI
 
 /// Composition layer that displays a processed `CGImage` hero or falls back to the
@@ -6,6 +7,7 @@ import SwiftUI
 @MainActor
 struct ImmersiveImageArtworkLayer<Placeholder: View>: View {
     let image: CGImage?
+    let traceID: String
     let showsPlaceholder: Bool
     let fallbackBackgroundColor: Color
     let paletteKey: String
@@ -15,6 +17,9 @@ struct ImmersiveImageArtworkLayer<Placeholder: View>: View {
     let placeholder: Placeholder
 
     @Environment(\.colorScheme) private var colorScheme
+    #if DEBUG
+    @Environment(\.displayScale) private var displayScale
+    #endif
 
     var body: some View {
         GeometryReader { geometry in
@@ -43,6 +48,14 @@ struct ImmersiveImageArtworkLayer<Placeholder: View>: View {
                             height: geometry.size.height
                         )
                         .clipped()
+                        #if DEBUG
+                        .onChange(
+                            of: geometryTrace(image: image, geometry: geometry, placement: placement),
+                            initial: true
+                        ) { _, value in
+                            print("[ImageTrace] t=\(String(format: "%.3f", ProcessInfo.processInfo.systemUptime)) IMMERSIVE GEOMETRY content=\(traceID) \(value)")
+                        }
+                        #endif
                 } else if showsPlaceholder {
                     ImmersivePlaceholderArtwork(
                         palette: ImmersivePlaceholderPaletteCache.palette(
@@ -60,6 +73,24 @@ struct ImmersiveImageArtworkLayer<Placeholder: View>: View {
             }
         }
     }
+
+    #if DEBUG
+    private func geometryTrace(
+        image: CGImage,
+        geometry: GeometryProxy,
+        placement: ImmersiveImagePlacement
+    ) -> String {
+        let frame = geometry.frame(in: .global)
+        return String(
+            format: "pixels=%ldx%ld container=%.3fx%.3f rendered=%.3fx%.3f cropOffset=%.3f,%.3f origin=%.3f,%.3f displayScale=%.1f safeTop=%.3f",
+            image.width, image.height,
+            geometry.size.width, geometry.size.height,
+            placement.size.width, placement.size.height,
+            placement.offset.width, placement.offset.height,
+            frame.minX, frame.minY, displayScale, geometry.safeAreaInsets.top
+        )
+    }
+    #endif
 }
 
 // MARK: - Placeholder tuning

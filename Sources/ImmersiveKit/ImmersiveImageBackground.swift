@@ -1,4 +1,5 @@
 import CoreGraphics
+import Foundation
 import PrismCoreBackgrounds
 import SwiftUI
 
@@ -115,7 +116,8 @@ public struct ImmersiveImageBackground<Placeholder: View, Content: View>: View {
                 requestID: requestID,
                 result: ImmersiveImagePipeline.cachedResult(
                     key: requestID.cacheKey,
-                    extractsBackgroundColor: requestID.extractsBackgroundColor
+                    extractsBackgroundColor: requestID.extractsBackgroundColor,
+                    sourceImage: sourceImage
                 )
             )
         )
@@ -131,6 +133,7 @@ public struct ImmersiveImageBackground<Placeholder: View, Content: View>: View {
         ) {
             ImmersiveImageArtworkLayer(
                 image: currentResult?.image,
+                traceID: contentID ?? sourceID,
                 showsPlaceholder: showsPlaceholder,
                 fallbackBackgroundColor: fallbackBackgroundColor,
                 paletteKey: placeholderPaletteKey,
@@ -142,9 +145,29 @@ public struct ImmersiveImageBackground<Placeholder: View, Content: View>: View {
         } content: {
             content
         }
+        #if DEBUG
+        .onAppear { trace("APPEAR \(traceDescription)") }
+        .onDisappear { trace("DISAPPEAR content=\(contentID ?? sourceID)") }
+        .onChange(of: traceDescription, initial: true) { _, value in
+            trace("DISPLAY \(value)")
+        }
+        #endif
         .task(id: requestID) {
             await processImage(for: requestID)
         }
+    }
+
+    #if DEBUG
+    private var traceDescription: String {
+        let result = currentResult
+        return "content=\(contentID ?? sourceID) source=\(sourceID) input=\(sourceImage?.width ?? 0)x\(sourceImage?.height ?? 0) displayed=\(result?.image.width ?? 0)x\(result?.image.height ?? 0) colorReady=\(result?.extractedBackgroundColor != nil) retained=\(loadState.requestID != requestID)"
+    }
+    #endif
+
+    private func trace(_ message: @autoclosure () -> String) {
+        #if DEBUG
+        print("[ImageTrace] t=\(String(format: "%.3f", ProcessInfo.processInfo.systemUptime)) IMMERSIVE \(message())")
+        #endif
     }
 
     private var effectiveBackgroundColor: Color {
@@ -223,14 +246,19 @@ public struct ImmersiveImageBackground<Placeholder: View, Content: View>: View {
     }
 
     private func processImage(for requestID: ImmersiveImageRequestID) async {
+        trace("PROCESS begin source=\(requestID.cacheKey.sourceID)")
         let result = await ImmersiveImagePipeline.process(
             sourceImage: sourceImage,
             key: requestID.cacheKey,
             extractsBackgroundColor: requestID.extractsBackgroundColor
         )
-        guard !Task.isCancelled, requestID == self.requestID else { return }
+        guard !Task.isCancelled, requestID == self.requestID else {
+            trace("PROCESS cancelled-or-stale source=\(requestID.cacheKey.sourceID)")
+            return
+        }
         // A failed replacement must not erase a previously ready rendition.
         guard result != nil || sourceImage == nil else { return }
+        trace("PROCESS end source=\(requestID.cacheKey.sourceID) samePixels=\(result?.image === loadState.result?.image) pixels=\(result?.image.width ?? 0)x\(result?.image.height ?? 0)")
         loadState = ImmersiveImageLoadState(requestID: requestID, result: result)
     }
 

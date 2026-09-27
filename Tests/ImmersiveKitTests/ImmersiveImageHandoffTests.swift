@@ -5,6 +5,36 @@ import XCTest
 
 @MainActor
 final class ImmersiveImageHandoffTests: XCTestCase {
+    func testReopeningCanRenderDecodedOriginalWithoutProcessedCache() throws {
+        let image = try makeImage()
+        let key = ImmersiveArtworkCacheKey(sourceID: UUID().uuidString, crop: .original)
+        XCTAssertNil(ImmersiveImagePipeline.cachedResult(key: key, extractsBackgroundColor: true))
+        let result = ImmersiveImagePipeline.cachedResult(
+            key: key, extractsBackgroundColor: true, sourceImage: image
+        )
+        XCTAssertTrue(result?.image === image)
+    }
+
+    func testOriginalProcessingUsesCallerPixelsWithoutCachingDuplicateArtwork() async throws {
+        let image = try makeImage()
+        let key = ImmersiveArtworkCacheKey(sourceID: UUID().uuidString, crop: .original)
+        let result = await ImmersiveImagePipeline.process(
+            sourceImage: image,
+            key: key,
+            extractsBackgroundColor: false
+        )
+        XCTAssertTrue(result?.image === image)
+        XCTAssertNil(ImmersiveArtworkMemoryCache.artwork(for: key))
+    }
+
+    func testUnprocessedOriginalIsNotUsedForSquareCrop() throws {
+        let image = try makeImage()
+        let key = ImmersiveArtworkCacheKey(sourceID: UUID().uuidString, crop: .square)
+        XCTAssertNil(ImmersiveImagePipeline.cachedResult(
+            key: key, extractsBackgroundColor: true, sourceImage: image
+        ))
+    }
+
     func testUpgradeKeepsReadyArtworkUntilReplacementIsPrepared() throws {
         let image = try makeImage()
         let old = ImmersiveProcessedImage(image: image, extractedBackgroundColor: .red)

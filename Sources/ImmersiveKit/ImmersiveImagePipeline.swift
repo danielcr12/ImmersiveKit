@@ -19,9 +19,6 @@ struct ImmersiveImageRequestID: Hashable {
         self.extractsBackgroundColor = extractsBackgroundColor
     }
 
-    func matchesImageInput(of other: ImmersiveImageRequestID) -> Bool {
-        cacheKey == other.cacheKey && hasSourceImage == other.hasSourceImage
-    }
 }
 
 struct ImmersiveProcessedImage {
@@ -52,9 +49,15 @@ struct ImmersiveImageLoadState {
 enum ImmersiveImagePipeline {
     static func cachedResult(
         key: ImmersiveArtworkCacheKey,
-        extractsBackgroundColor: Bool
+        extractsBackgroundColor: Bool,
+        sourceImage: CGImage? = nil
     ) -> ImmersiveProcessedImage? {
-        guard let image = ImmersiveArtworkMemoryCache.artwork(for: key) else {
+        // Original artwork needs no crop. Already-decoded source pixels can
+        // render on the first frame even if the derived artwork cache evicted
+        // its copy; color extraction can finish independently.
+        guard let image = key.crop == .original
+            ? sourceImage
+            : ImmersiveArtworkMemoryCache.artwork(for: key) else {
             return nil
         }
 
@@ -72,8 +75,12 @@ enum ImmersiveImagePipeline {
         key: ImmersiveArtworkCacheKey,
         extractsBackgroundColor: Bool
     ) async -> ImmersiveProcessedImage? {
+        guard let sourceImage else { return nil }
         let image: CGImage
-        if let cachedImage = ImmersiveArtworkMemoryCache.artwork(for: key) {
+        if key.crop == .original {
+            // The caller already owns decoded pixels; no derived artwork exists.
+            image = sourceImage
+        } else if let cachedImage = ImmersiveArtworkMemoryCache.artwork(for: key) {
             image = cachedImage
         } else {
             guard let processedImage = await ImmersiveImageProcessing.crop(
