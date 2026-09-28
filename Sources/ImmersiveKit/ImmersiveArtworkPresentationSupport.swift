@@ -137,14 +137,16 @@ struct ImmersiveHeroArtworkSurface<Artwork: View>: View {
 }
 
 struct ImmersiveHeroArtworkFadeMask: View {
+    var isEnabled = true
+
     var body: some View {
         LinearGradient(
             stops: [
                 .init(color: .white, location: 0),
                 .init(color: .white, location: 0.68),
-                .init(color: .white.opacity(0.74), location: 0.80),
-                .init(color: .white.opacity(0.10), location: 0.96),
-                .init(color: .clear, location: 1)
+                .init(color: .white.opacity(isEnabled ? 0.74 : 1), location: 0.80),
+                .init(color: .white.opacity(isEnabled ? 0.10 : 1), location: 0.96),
+                .init(color: .white.opacity(isEnabled ? 0 : 1), location: 1)
             ],
             startPoint: .top,
             endPoint: .bottom

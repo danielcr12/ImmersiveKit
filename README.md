@@ -113,6 +113,49 @@ SwiftUI view, such as a collage. Use `ImmersiveImagePrewarmer` when an upcoming
 image-backed screen should have its crop and background color ready before
 presentation.
 
+## Asset, symbol, and emoji artwork
+
+Use `ImmersiveArtwork` when the hero artwork comes from an image asset, SF
+Symbol, or emoji. It keeps asset images in SwiftUI's image rendering path, so
+vector assets are not rasterized into a `CGImage` before scaling. Asset and
+image artwork fill the entire hero by default, preserving proportions and
+cropping overflow just like photo heroes, regardless of intrinsic dimensions.
+Symbols and emoji use a centered inset region. Pass `contentMode: .fit` for an
+asset or image that should remain entirely visible within that inset region.
+
+Asset and image artwork automatically fade at their lower edge into the hero
+background, using the same gradient as photo heroes. Filled artwork fades at
+the visible hero edge; fitted artwork fades at its own lower edge so
+illustrations do not end in a hard horizontal edge.
+Symbols and emoji remain fully visible by default. Pass `blending: .none` to
+keep an illustration intact, or `blending: .bottomFade` to request the fade
+explicitly for any source.
+
+Pass `scale: 1.25` to enlarge the artwork by 25% within the hero, or
+`scale: 0.85` to ease the zoom by 15%. Filled images keep the full hero viewport
+while their artwork scales inside it. Smaller artwork can reveal the background
+around its edges. Hero height and title placement stay unchanged; artwork
+extending beyond the hero is clipped.
+
+```swift
+ImmersiveArtworkBackground(
+    backgroundColor: .blue,
+    title: "New in PawFolio",
+    subtitle: "Version 1.0"
+) {
+    ImmersiveArtwork(asset: "pawfolio-unlimited")
+} content: {
+    ReleaseNotes()
+}
+```
+
+Use `ImmersiveArtwork(symbol: "pawprint.fill")` for an SF Symbol or
+`ImmersiveArtwork(emoji: "🐾")` for emoji. Use `ImmersiveArtwork(image:)` when
+you already have a SwiftUI `Image`; use the existing artwork closure for other
+composed SwiftUI views. An opaque `Image` does not reveal whether it came from
+a vector or bitmap asset, so pass asset names through `ImmersiveArtwork(asset:)`
+to preserve the source representation.
+
 ## Opt-in pagination
 
 Pagination is a separate, explicit presentation for identifiable collections.
