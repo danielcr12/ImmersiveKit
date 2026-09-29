@@ -137,6 +137,14 @@ while their artwork scales inside it. Smaller artwork can reveal the background
 around its edges. Hero height and title placement stay unchanged; artwork
 extending beyond the hero is clipped.
 
+For an image-backed screen whose missing-photo placeholder is a vector asset,
+pass `placeholderArtworkStyle: .artwork` to `ImmersiveImageBackground` and
+return `ImmersiveArtwork(asset: "dog")` from its placeholder closure. Supply
+only the real photo as `sourceImage`; converting the fallback asset to
+`CGImage` would discard its scalable representation. The `.artwork` style
+gives the placeholder the full hero area without symbol sizing or tinting,
+while the same image-backed screen continues to own photo loading.
+
 ```swift
 ImmersiveArtworkBackground(
     backgroundColor: .blue,

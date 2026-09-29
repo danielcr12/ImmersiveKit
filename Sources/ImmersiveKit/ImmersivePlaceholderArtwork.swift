@@ -138,6 +138,9 @@ private struct ImmersivePlaceholderArtwork<Placeholder: View>: View {
     @ViewBuilder
     private func placeholderSymbol(size: CGFloat, height: CGFloat) -> some View {
         switch artworkStyle {
+        case .artwork:
+            placeholder
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
         case .gradient:
             placeholder
                 .frame(width: size, height: size)
@@ -181,9 +184,7 @@ private struct ImmersivePlaceholderArtwork<Placeholder: View>: View {
                 )
                 .opacity(colorScheme == .dark ? 0 : 1)
             }
-        case .solid:
-            Color.clear
-        case .transparent:
+        case .artwork, .solid, .transparent:
             Color.clear
         }
     }

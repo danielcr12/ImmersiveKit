@@ -25,6 +25,9 @@ public enum ImmersiveBackgroundTreatment: Sendable {
 
 /// Determines how a missing image is rendered inside an image-backed hero.
 public enum ImmersivePlaceholderArtworkStyle: Equatable, Sendable {
+    /// Renders the supplied SwiftUI artwork across the hero without symbol
+    /// sizing or tinting. Use for vector assets or other composed artwork.
+    case artwork
     /// Uses the layered placeholder gradient and hero scrim.
     case gradient
     /// Uses a uniform placeholder tint and the supplied symbol color gradient.
@@ -39,6 +42,8 @@ public struct ImmersiveArtworkLayout: Sendable {
 
     public let heroHeightRatio: CGFloat
     public let minimumHeroHeight: CGFloat
+    public let showsTitle: Bool
+    public let showsSubtitle: Bool
     public let titleLineLimit: Int?
     public let subtitleLineLimit: Int?
     public let contentHorizontalPadding: CGFloat
@@ -47,6 +52,8 @@ public struct ImmersiveArtworkLayout: Sendable {
     public init(
         heroHeightRatio: CGFloat = 0.58,
         minimumHeroHeight: CGFloat = 440,
+        showsTitle: Bool = true,
+        showsSubtitle: Bool = true,
         titleLineLimit: Int? = 1,
         subtitleLineLimit: Int? = 1,
         contentHorizontalPadding: CGFloat = 16,
@@ -54,6 +61,8 @@ public struct ImmersiveArtworkLayout: Sendable {
     ) {
         self.heroHeightRatio = heroHeightRatio
         self.minimumHeroHeight = minimumHeroHeight
+        self.showsTitle = showsTitle
+        self.showsSubtitle = showsSubtitle
         self.titleLineLimit = titleLineLimit
         self.subtitleLineLimit = subtitleLineLimit
         self.contentHorizontalPadding = contentHorizontalPadding
@@ -161,19 +170,23 @@ public struct ImmersiveArtworkBackground<Artwork: View, Content: View>: View {
                 .allowsHitTesting(false)
 
                 VStack(spacing: ImmersiveArtworkTuning.titleSubtitleSpacing) {
-                    Text(title)
-                        .font(.title.bold())
-                        .foregroundStyle(titleColor)
-                        .multilineTextAlignment(.center)
-                        .lineLimit(layout.titleLineLimit)
-                        .truncationMode(.tail)
+                    if layout.showsTitle {
+                        Text(title)
+                            .font(.title.bold())
+                            .foregroundStyle(titleColor)
+                            .multilineTextAlignment(.center)
+                            .lineLimit(layout.titleLineLimit)
+                            .truncationMode(.tail)
+                    }
 
-                    Text(subtitle)
-                        .font(.subheadline.bold())
-                        .foregroundStyle(titleColor)
-                        .multilineTextAlignment(.center)
-                        .lineLimit(layout.subtitleLineLimit)
-                        .truncationMode(.tail)
+                    if layout.showsSubtitle {
+                        Text(subtitle)
+                            .font(.subheadline.bold())
+                            .foregroundStyle(titleColor)
+                            .multilineTextAlignment(.center)
+                            .lineLimit(layout.subtitleLineLimit)
+                            .truncationMode(.tail)
+                    }
                 }
                 .padding(.horizontal, ImmersiveArtworkTuning.heroLabelHorizontalPadding)
                 .padding(.bottom, ImmersiveArtworkTuning.heroLabelBottomPadding)
